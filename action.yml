@@ -16,6 +16,11 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
     - name: Configure git identity
       shell: bash
       run: |
@@ -117,12 +122,6 @@ runs:
         CHANGE_TYPES=$(${{ github.action_path }}/scripts/detect-changes.sh)
         echo "types=${CHANGE_TYPES}" >> "$GITHUB_OUTPUT"
         echo "Detected changes: ${CHANGE_TYPES}"
-
-    - name: Setup Node.js
-      if: steps.content_hash.outputs.skip != 'true'
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
 
     - name: Claude Code integration
       if: steps.content_hash.outputs.skip != 'true'
