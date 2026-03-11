@@ -21,10 +21,6 @@ COPILOT="${COPILOT_NAME:-Assistant}"
 sed "s|__VOICE_AGENT_VERSION__|${VERSION}|g" "$TEMPLATES/server/package.json.tmpl" > server/package.json
 sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/server/.env.example" > server/.env.example
 
-# Public assets
-mkdir -p public
-cp "$TEMPLATES/public/ten-vad-processor.js" public/ten-vad-processor.js
-
 # Docker / deploy files
 cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
 cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
