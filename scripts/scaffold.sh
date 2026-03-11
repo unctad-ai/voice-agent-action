@@ -13,9 +13,17 @@ echo "=== Scaffold: copying templates ==="
 mkdir -p server
 cp "$TEMPLATES/server/Dockerfile" server/Dockerfile
 cp "$TEMPLATES/server/index.ts" server/index.ts
+cp "$TEMPLATES/server/tsconfig.json" server/tsconfig.json
+cp "$TEMPLATES/server/.dockerignore" server/.dockerignore
 
-# Server package.json with version substitution
+# Server package.json and .env.example with substitutions
+COPILOT="${COPILOT_NAME:-Assistant}"
 sed "s|__VOICE_AGENT_VERSION__|${VERSION}|g" "$TEMPLATES/server/package.json.tmpl" > server/package.json
+sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/server/.env.example" > server/.env.example
+
+# Public assets
+mkdir -p public
+cp "$TEMPLATES/public/ten-vad-processor.js" public/ten-vad-processor.js
 
 # Docker / deploy files
 cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
@@ -24,8 +32,10 @@ cp "$TEMPLATES/nginx.conf" nginx.conf
 cp "$TEMPLATES/.dockerignore" .dockerignore
 cp "$TEMPLATES/.gitignore" .gitignore
 
+# CLAUDE.md with copilot name substitution
+sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/CLAUDE.md.tmpl" > CLAUDE.md
+
 # Substitute copilot name in docker-compose (portable sed -i)
-COPILOT="${COPILOT_NAME:-Assistant}"
 sed "s|__COPILOT_NAME__|${COPILOT}|g" docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
 
 echo "=== Scaffold: adding voice-agent packages to package.json ==="

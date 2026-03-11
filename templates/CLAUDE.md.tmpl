@@ -1,0 +1,45 @@
+# CLAUDE.md
+
+## Project Overview
+
+__COPILOT_NAME__ Voice Assistant — a React SPA with voice agent integration. Originally generated from **Figma Make**, with voice capabilities added via `@unctad-ai/voice-agent-*` packages.
+
+## Commands
+
+- `docker compose up -d` — start frontend + backend
+- `docker compose down` — stop all services
+- `docker compose logs -f` — tail logs
+- `docker compose up --build -d` — rebuild after changes
+- `npm install` — install dependencies (without Docker)
+- `npm run dev` — start Vite dev server (without Docker)
+- `npm run build` — production build to `build/`
+
+## Docker Compose
+
+Two services: `frontend` (Vite/nginx, port 80) + `backend` (Express, port 3001). Backend reads `server/.env` for API keys.
+
+## Architecture
+
+**Stack:** React + TypeScript + Vite + voice-agent-kit
+
+**Voice Agent:**
+- `src/voice-config.ts` — Client SiteConfig (copilot name, colors, services, routes)
+- `server/voice-config.ts` — Server SiteConfig (adds server tools, system prompt)
+- `server/index.ts` — Express server with chat/STT/TTS endpoints
+- `src/App.tsx` — VoiceAgentProvider wrapping the app + GlassCopilotPanel
+
+**Voice-agent-kit packages:**
+- `@unctad-ai/voice-agent-core` — Hooks, types, config
+- `@unctad-ai/voice-agent-ui` — UI components (GlassCopilotPanel, VoiceOrb)
+- `@unctad-ai/voice-agent-registries` — Form fields, UI actions, tool handlers
+- `@unctad-ai/voice-agent-server` — Express route handlers
+
+## Environment Variables (server/.env)
+
+```
+GROQ_API_KEY=...           # Required: Groq API key for LLM + Whisper STT
+KYUTAI_STT_URL=...         # STT endpoint URL
+QWEN3_TTS_URL=...          # TTS endpoint URL
+CLIENT_API_KEY=...         # API key for frontend→backend auth
+COPILOT_NAME=__COPILOT_NAME__
+```
