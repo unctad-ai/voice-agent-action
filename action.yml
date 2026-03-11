@@ -30,18 +30,23 @@ runs:
           echo "::error::Missing .voice-agent.yml in repository root"
           exit 1
         fi
-        # Parse YAML config — sanitize values to single line to prevent output injection
-        for key in copilot_name copilot_color domain description voice_agent_version auto_merge_incremental; do
-          VALUE=$(yq -r ".$key // \"\"" .voice-agent.yml | tr -d '\n\r')
-          echo "${key}=${VALUE}" >> "$GITHUB_OUTPUT"
-        done
-        # Defaults
-        if [[ -z "$(yq -r '.voice_agent_version // ""' .voice-agent.yml)" ]]; then
-          echo "voice_agent_version=latest" >> "$GITHUB_OUTPUT"
-        fi
-        if [[ -z "$(yq -r '.auto_merge_incremental // ""' .voice-agent.yml)" ]]; then
-          echo "auto_merge_incremental=true" >> "$GITHUB_OUTPUT"
-        fi
+        # Parse YAML config using node (yq not available on self-hosted runners)
+        node -e "
+          const fs = require('fs');
+          const yaml = fs.readFileSync('.voice-agent.yml', 'utf8');
+          const config = {};
+          yaml.split('\n').forEach(line => {
+            const m = line.match(/^(\w+):\s*(.+)/);
+            if (m) config[m[1]] = m[2].replace(/^[\"']|[\"']$/g, '').trim();
+          });
+          const keys = ['copilot_name','copilot_color','domain','description','voice_agent_version','auto_merge_incremental'];
+          const out = [];
+          keys.forEach(k => out.push(k + '=' + (config[k] || '')));
+          // Defaults
+          if (!config.voice_agent_version) out.push('voice_agent_version=latest');
+          if (!config.auto_merge_incremental) out.push('auto_merge_incremental=true');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, out.join('\n') + '\n');
+        "
 
     - name: Detect mode (initial vs incremental)
       id: mode
