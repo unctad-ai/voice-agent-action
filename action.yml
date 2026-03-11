@@ -157,6 +157,21 @@ runs:
       shell: bash
       run: ${{ github.action_path }}/scripts/verify.sh
 
+    - name: Clean build artifacts before commit
+      shell: bash
+      run: |
+        rm -rf node_modules build dist server/node_modules
+        # Ensure .gitignore excludes build artifacts on the voice-agent branch
+        if ! grep -qx 'node_modules' .gitignore 2>/dev/null; then
+          echo 'node_modules' >> .gitignore
+        fi
+        if ! grep -qx 'build' .gitignore 2>/dev/null; then
+          echo 'build' >> .gitignore
+        fi
+        if ! grep -qx 'dist' .gitignore 2>/dev/null; then
+          echo 'dist' >> .gitignore
+        fi
+
     - name: Update voice-agent branch
       id: push
       shell: bash
@@ -186,12 +201,25 @@ runs:
         MODE="${{ steps.mode.outputs.mode }}"
         AUTO_MERGE="${{ steps.config.outputs.auto_merge_incremental }}"
         if [[ "$MODE" == "initial" ]] || [[ "$AUTO_MERGE" != "true" ]]; then
-          gh pr create \
-            --base "main" \
-            --head "${{ inputs.voice_agent_branch }}" \
-            --title "Voice Agent Integration" \
-            --body "Auto-generated voice agent integration. Please review form field registrations carefully." \
-            || echo "PR already exists"
+          # Use GitHub API directly (gh CLI may not be on self-hosted runners)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Authorization: token ${{ inputs.github_token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -d '{
+              "title": "Voice Agent Integration",
+              "body": "Auto-generated voice agent integration. Please review form field registrations carefully.",
+              "head": "${{ inputs.voice_agent_branch }}",
+              "base": "main"
+            }')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          if [[ "$HTTP_CODE" == "201" ]]; then
+            PR_URL=$(echo "$RESPONSE" | sed '$d' | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).html_url)")
+            echo "PR created: $PR_URL"
+          elif [[ "$HTTP_CODE" == "422" ]]; then
+            echo "PR already exists"
+          else
+            echo "::warning::PR creation returned HTTP $HTTP_CODE"
+          fi
         fi
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
