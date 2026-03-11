@@ -85,14 +85,26 @@ For each form component (files matching `*Application*.tsx` or `*Form*.tsx` in `
 
 **CRITICAL:** NEVER fabricate option values. Only extract options from actual `<option>` elements in the JSX.
 
-**Object state with `prev =>` pattern:**
-```typescript
-// CORRECT
-bind: [currentDirector.firstName, (v) => setCurrentDirector(prev => ({...prev, firstName: v as string}))]
+**State binding patterns — two forms exist in Figma Make projects:**
 
-// WRONG — stale closure
-bind: [currentDirector.firstName, (v) => setCurrentDirector({...currentDirector, firstName: v as string})]
+Pattern A — Individual `useState` variables (most common):
+```typescript
+const [firstName, setFirstName] = useState('');
+// bind:
+bind: [firstName, (v) => setFirstName(v as string)]
 ```
+
+Pattern B — Object state (e.g. `formData`, `currentDirector`):
+```typescript
+const [formData, setFormData] = useState({ firstName: '', lastName: '' });
+// bind with prev => pattern (REQUIRED to avoid stale closures):
+bind: [formData.firstName, (v) => setFormData(prev => ({...prev, firstName: v as string}))]
+
+// WRONG — stale closure:
+bind: [formData.firstName, (v) => setFormData({...formData, firstName: v as string})]
+```
+
+Both patterns are valid. Read the component's state declarations to determine which pattern applies.
 
 **Visibility:** Walk up the JSX tree from each field's element, collect all `{condition && (...)}` gates, AND them together. Include `!isProcessing*` guards.
 
@@ -105,13 +117,59 @@ bind: [currentDirector.firstName, (v) => setCurrentDirector({...currentDirector,
 - Validation error state
 - Uncontrolled inputs (no React state = no bind target)
 
-**UI actions:** Add `useRegisterUIAction` for button actions (add/remove items, uploads). Handler MUST return a descriptive string.
+**UI actions (REQUIRED for every form component):**
+Add `useRegisterUIAction` for ALL interactive button actions — not just add/remove. Common actions:
+- Add/remove items in a list (directors, documents, line items)
+- Upload/delete files
+- Clear/reset form sections
+- Toggle sections open/closed
+- Query/search operations
 
-**Tab switch:** Add `useRegisterTabSwitchAction` for tab navigation with typed tab array.
+Handler MUST return a descriptive string:
+```typescript
+useRegisterUIAction(
+  'prefix.actionName',
+  'Human description of what this does',
+  useCallback(() => {
+    doSomething();
+    return `Result: what happened. Current state: ${items.length} items.`;
+  }, [items.length]),
+  { category: 'prefix' }
+);
+```
 
-**Submit:** Add `useRegisterSubmitAction` with guard function checking preconditions.
+**Tab/step switch (REQUIRED if component has tabs or step navigation):**
+```typescript
+useRegisterTabSwitchAction(
+  'prefix',
+  ['form', 'send'] as const,  // must match component's tab type
+  (tab) => setActiveTab(tab as TabType),
+  'prefix'
+);
+```
+Also works for multi-page/multi-step wizards — use page names as tab values.
 
-**Large files:** Skip components > 2000 lines. Flag them in output for manual review.
+**Submit action (REQUIRED for every form component):**
+Even if the component doesn't have an explicit submit handler, add one. If the component has a "Submit" or "Send" button, hook it. If it only has navigation to next page, make the guard check required fields:
+```typescript
+useRegisterSubmitAction('prefix', {
+  description: 'Submit the [form name] application',
+  guard: () => {
+    if (activeTab !== 'send') return 'Switch to the Send tab first';
+    if (!consentChecked) return 'Consent checkbox must be checked';
+    // Check other preconditions from the component's validation logic
+    return null;
+  },
+  onSubmit: () => { /* call existing submit handler or navigate */ },
+  successMessage: 'Application submitted successfully.',
+  category: 'prefix',
+});
+```
+
+**Large files (> 2000 lines):** Do NOT skip entirely. Instead:
+1. Read the file in chunks (first 1000 lines, then next 1000, etc.)
+2. Integrate what you can (imports, useProgressiveFields, UI actions)
+3. Flag in output: `PARTIAL: src/components/LargeForm.tsx (2885 lines — integrated fields from lines 1-1500, manual review needed for remainder)`
 
 ## 5. Validation
 
