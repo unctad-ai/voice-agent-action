@@ -59,20 +59,14 @@ add_dep "@ai-sdk/react" "^1.0.0"
 
 echo "=== Scaffold: patching vite.config.ts ==="
 
-# Figma Make generates JSX in .ts files — tell esbuild to handle it
-if ! grep -q "esbuild" vite.config.ts 2>/dev/null; then
-  node -e "
-    let config = require('fs').readFileSync('vite.config.ts', 'utf8');
-    config = config.replace(
-      /export default defineConfig\(\{/,
-      'export default defineConfig({\n  esbuild: { loader: \"tsx\" },'
-    );
-    require('fs').writeFileSync('vite.config.ts', config);
-    console.log('  Added esbuild tsx loader (handles JSX in .ts files)');
-  "
-else
-  echo "  esbuild config already present"
-fi
+# Fix Figma Make quirk: some projects have JSX in .ts files (should be .tsx)
+find src -name '*.ts' ! -name '*.d.ts' -type f 2>/dev/null | while read -r f; do
+  if grep -qE '<[A-Z/]|<>' "$f" 2>/dev/null; then
+    NEW="${f%.ts}.tsx"
+    mv "$f" "$NEW"
+    echo "  Renamed $f → $NEW (contains JSX)"
+  fi
+done
 
 # Add build.outDir: 'build' if not present
 if ! grep -q "outDir.*['\"]build['\"]" vite.config.ts 2>/dev/null; then
