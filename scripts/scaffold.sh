@@ -56,17 +56,32 @@ add_dep "@unctad-ai/voice-agent-core" "$VERSION"
 add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
 add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
 
-# Peer dependencies required by voice-agent-core
-add_dep "@ai-sdk/react" "^3.0.0"
-add_dep "ai" "^6.0.0"
-add_dep "react-router" "^7.0.0"
-add_dep "zod" "^3.25.0"
-
-# Peer dependencies required by voice-agent-ui
-add_dep "simplex-noise" "^4.0.0"
-add_dep "motion" "^12.0.0"
-add_dep "lucide-react" "^0.577.0"
-add_dep "@gooney-001/ten-vad-lib" "^1.0.2"
+# Auto-resolve peer dependencies from published packages (zero maintenance).
+# Reads peerDependencies from the npm registry so scaffold.sh never needs
+# manual version updates when the kit's deps change.
+echo "  Resolving peer dependencies from npm registry..."
+node -e "
+  const { execSync } = require('child_process');
+  const kit = [
+    '@unctad-ai/voice-agent-core',
+    '@unctad-ai/voice-agent-ui',
+    '@unctad-ai/voice-agent-registries'
+  ];
+  const skip = new Set(['react', 'react-dom', ...kit]);
+  const peers = {};
+  for (const pkg of kit) {
+    try {
+      const raw = execSync('npm info ' + pkg + ' peerDependencies --json 2>/dev/null',
+        { encoding: 'utf8' });
+      Object.assign(peers, JSON.parse(raw));
+    } catch {}
+  }
+  for (const k of skip) delete peers[k];
+  for (const [name, ver] of Object.entries(peers))
+    console.log(name + ' ' + ver);
+" | while IFS=' ' read -r pkg ver; do
+  add_dep "$pkg" "$ver"
+done
 
 echo "=== Scaffold: patching vite.config.ts ==="
 
