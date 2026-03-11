@@ -83,7 +83,14 @@ runs:
         # Hash the files Claude Code would read — if unchanged, skip the expensive step
         CLAUDE_INPUTS="src/data/services.ts src/App.tsx"
         CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -type f \( -name '*Application*' -o -name '*Form*' \) 2>/dev/null || true)"
-        HASH=$(cat $CLAUDE_INPUTS 2>/dev/null | sha256sum | cut -d' ' -f1)
+        # Filter to only files that exist (cat fails with pipefail if none exist)
+        EXISTING_INPUTS=""
+        for f in $CLAUDE_INPUTS; do [ -f "$f" ] && EXISTING_INPUTS="$EXISTING_INPUTS $f"; done
+        if [ -n "$EXISTING_INPUTS" ]; then
+          HASH=$(cat $EXISTING_INPUTS | sha256sum | cut -d' ' -f1)
+        else
+          HASH=$(echo "empty" | sha256sum | cut -d' ' -f1)
+        fi
 
         # Read old hash from git tree (not filesystem — preserved files aren't restored yet)
         OLD_HASH=$(git show "origin/${{ inputs.voice_agent_branch }}:.voice-agent/content-hash" 2>/dev/null || echo "none")
