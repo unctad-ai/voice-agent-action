@@ -205,36 +205,54 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
 
-    - name: Create PR (initial) or notify (incremental)
+    - name: Create or merge PR
       if: steps.push.outputs.skipped != 'true'
       shell: bash
       run: |
         MODE="${{ steps.mode.outputs.mode }}"
         AUTO_MERGE="${{ steps.config.outputs.auto_merge_incremental }}"
-        if [[ "$MODE" == "initial" ]] || [[ "$AUTO_MERGE" != "true" ]]; then
-          # Use GitHub API directly (gh CLI may not be on self-hosted runners)
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+        REPO="${{ github.repository }}"
+        API="https://api.github.com/repos/${REPO}"
+        AUTH=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+
+        # Find existing PR from voice-agent → main
+        EXISTING=$(curl -s "${AUTH[@]}" "${API}/pulls?head=$(echo $REPO | cut -d/ -f1):${{ inputs.voice_agent_branch }}&base=main&state=open" \
+          | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));process.stdout.write(d[0]?.number?.toString()||'')")
+
+        if [[ -n "$EXISTING" ]]; then
+          PR_NUM="$EXISTING"
+          echo "PR #${PR_NUM} already exists"
+        else
+          # Create PR
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${AUTH[@]}" "${API}/pulls" \
             -d '{
               "title": "Voice Agent Integration",
-              "body": "Auto-generated voice agent integration. Please review form field registrations carefully.",
+              "body": "Auto-generated voice agent integration.\n\nDocker builds verified: frontend + backend.",
               "head": "${{ inputs.voice_agent_branch }}",
               "base": "main"
             }')
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           if [[ "$HTTP_CODE" == "201" ]]; then
-            PR_URL=$(echo "$BODY" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).html_url)")
-            echo "PR created: $PR_URL"
-          elif [[ "$HTTP_CODE" == "422" ]]; then
-            echo "PR already exists"
+            PR_NUM=$(echo "$BODY" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).number.toString())")
+            echo "PR #${PR_NUM} created"
           else
             echo "::warning::PR creation returned HTTP $HTTP_CODE"
             echo "$BODY" | head -5
+            exit 0
+          fi
+        fi
+
+        # Auto-merge if incremental + auto_merge enabled
+        if [[ "$MODE" == "incremental" && "$AUTO_MERGE" == "true" ]]; then
+          echo "Auto-merging PR #${PR_NUM}..."
+          MERGE_RESP=$(curl -s -w "\n%{http_code}" -X PUT "${AUTH[@]}" "${API}/pulls/${PR_NUM}/merge" \
+            -d '{"merge_method": "squash"}')
+          MERGE_CODE=$(echo "$MERGE_RESP" | tail -1)
+          if [[ "$MERGE_CODE" == "200" ]]; then
+            echo "PR #${PR_NUM} merged"
+          else
+            echo "::warning::Auto-merge returned HTTP $MERGE_CODE"
           fi
         fi
       env:
