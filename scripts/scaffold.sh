@@ -6,17 +6,13 @@ ACTION_ROOT="$(dirname "$SCRIPT_DIR")"
 TEMPLATES="$ACTION_ROOT/templates"
 
 VERSION="${VOICE_AGENT_VERSION:-latest}"
-if [[ "$VERSION" == "latest" ]]; then
-  VERSION="*"
-fi
 
 echo "=== Scaffold: copying templates ==="
 
 # Server directory
 mkdir -p server
 cp "$TEMPLATES/server/Dockerfile" server/Dockerfile
-cp "$TEMPLATES/server/index.ts.tmpl" server/index.ts
-sed -i "s|__VOICE_AGENT_VERSION__|${VERSION}|g" server/index.ts 2>/dev/null || true
+cp "$TEMPLATES/server/index.ts" server/index.ts
 
 # Server package.json with version substitution
 sed "s|__VOICE_AGENT_VERSION__|${VERSION}|g" "$TEMPLATES/server/package.json.tmpl" > server/package.json
@@ -27,27 +23,32 @@ cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
 cp "$TEMPLATES/nginx.conf" nginx.conf
 cp "$TEMPLATES/.dockerignore" .dockerignore
 
-# Substitute copilot name in docker-compose
+# Substitute copilot name in docker-compose (portable sed -i)
 COPILOT="${COPILOT_NAME:-Assistant}"
-sed -i "s|__COPILOT_NAME__|${COPILOT}|g" docker-compose.yml
+sed "s|__COPILOT_NAME__|${COPILOT}|g" docker-compose.yml > docker-compose.yml.tmp && mv docker-compose.yml.tmp docker-compose.yml
 
 echo "=== Scaffold: adding voice-agent packages to package.json ==="
 
 # Add voice-agent packages to frontend package.json if not present
-for pkg in "@unctad-ai/voice-agent-core" "@unctad-ai/voice-agent-ui" "@unctad-ai/voice-agent-registries" "@ai-sdk/react"; do
+add_dep() {
+  local pkg="$1" ver="$2"
   if ! grep -q "\"$pkg\"" package.json; then
-    # Use node to add to dependencies (jq alternative)
     node -e "
       const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
       pkg.dependencies = pkg.dependencies || {};
-      pkg.dependencies['$pkg'] = '${VERSION}';
+      pkg.dependencies['$pkg'] = '$ver';
       require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
     "
-    echo "  Added $pkg"
+    echo "  Added $pkg@$ver"
   else
     echo "  $pkg already present"
   fi
-done
+}
+
+add_dep "@unctad-ai/voice-agent-core" "$VERSION"
+add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
+add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
+add_dep "@ai-sdk/react" "^1.0.0"
 
 echo "=== Scaffold: patching vite.config.ts ==="
 

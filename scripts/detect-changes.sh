@@ -9,7 +9,8 @@ CHANGES=""
 # Get changed files between previous and current main
 CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || git ls-files)
 
-for file in $CHANGED_FILES; do
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
   case "$file" in
     src/data/services*|src/data/serviceCategories*)
       CHANGES="$CHANGES services"
@@ -30,7 +31,7 @@ for file in $CHANGED_FILES; do
       CHANGES="$CHANGES other"
       ;;
   esac
-done
+done <<< "$CHANGED_FILES"
 
 # Deduplicate
 CHANGES=$(echo "$CHANGES" | tr ' ' '\n' | sort -u | tr '\n' ' ')

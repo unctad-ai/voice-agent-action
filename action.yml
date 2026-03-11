@@ -8,10 +8,20 @@ inputs:
     description: 'Target branch name'
     required: false
     default: 'voice-agent'
+  github_token:
+    description: 'GitHub token with contents:write and pull-requests:write permissions'
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: 'composite'
   steps:
+    - name: Configure git identity
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Read config
       id: config
       shell: bash
@@ -20,22 +30,27 @@ runs:
           echo "::error::Missing .voice-agent.yml in repository root"
           exit 1
         fi
-        # Parse YAML config (requires yq)
-        echo "copilot_name=$(yq '.copilot_name' .voice-agent.yml)" >> $GITHUB_OUTPUT
-        echo "copilot_color=$(yq '.copilot_color' .voice-agent.yml)" >> $GITHUB_OUTPUT
-        echo "domain=$(yq '.domain' .voice-agent.yml)" >> $GITHUB_OUTPUT
-        echo "description=$(yq '.description' .voice-agent.yml)" >> $GITHUB_OUTPUT
-        echo "voice_agent_version=$(yq '.voice_agent_version // "latest"' .voice-agent.yml)" >> $GITHUB_OUTPUT
-        echo "auto_merge=$(yq '.auto_merge_incremental // "true"' .voice-agent.yml)" >> $GITHUB_OUTPUT
+        # Parse YAML config — sanitize values to single line to prevent output injection
+        for key in copilot_name copilot_color domain description voice_agent_version auto_merge_incremental; do
+          VALUE=$(yq -r ".$key // \"\"" .voice-agent.yml | tr -d '\n\r')
+          echo "${key}=${VALUE}" >> "$GITHUB_OUTPUT"
+        done
+        # Defaults
+        if [[ -z "$(yq -r '.voice_agent_version // ""' .voice-agent.yml)" ]]; then
+          echo "voice_agent_version=latest" >> "$GITHUB_OUTPUT"
+        fi
+        if [[ -z "$(yq -r '.auto_merge_incremental // ""' .voice-agent.yml)" ]]; then
+          echo "auto_merge_incremental=true" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Detect mode (initial vs incremental)
       id: mode
       shell: bash
       run: |
-        if git rev-parse --verify origin/${{ inputs.voice_agent_branch }} &>/dev/null; then
-          echo "mode=incremental" >> $GITHUB_OUTPUT
+        if git rev-parse --verify "origin/${{ inputs.voice_agent_branch }}" &>/dev/null; then
+          echo "mode=incremental" >> "$GITHUB_OUTPUT"
         else
-          echo "mode=initial" >> $GITHUB_OUTPUT
+          echo "mode=initial" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Backup existing voice-agent branch
@@ -45,12 +60,14 @@ runs:
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         git tag "voice-agent-backup-${TIMESTAMP}" "origin/${{ inputs.voice_agent_branch }}"
         git push origin "voice-agent-backup-${TIMESTAMP}"
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Preserve manual additions
       if: steps.mode.outputs.mode == 'incremental'
       id: preserve
       shell: bash
-      run: ${{ github.action_path }}/scripts/preserve-manual.sh ${{ inputs.voice_agent_branch }}
+      run: ${{ github.action_path }}/scripts/preserve-manual.sh "${{ inputs.voice_agent_branch }}"
 
     - name: Scaffold from templates
       shell: bash
@@ -65,9 +82,12 @@ runs:
       run: |
         # Hash the files Claude Code would read — if unchanged, skip the expensive step
         CLAUDE_INPUTS="src/data/services.ts src/App.tsx"
-        CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -name '*Application*' -o -name '*Form*' 2>/dev/null || true)"
+        CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -type f \( -name '*Application*' -o -name '*Form*' \) 2>/dev/null || true)"
         HASH=$(cat $CLAUDE_INPUTS 2>/dev/null | sha256sum | cut -d' ' -f1)
-        OLD_HASH=$(cat .voice-agent/content-hash 2>/dev/null || echo "none")
+
+        # Read old hash from git tree (not filesystem — preserved files aren't restored yet)
+        OLD_HASH=$(git show "origin/${{ inputs.voice_agent_branch }}:.voice-agent/content-hash" 2>/dev/null || echo "none")
+
         mkdir -p .voice-agent
         echo "$HASH" > .voice-agent/content-hash
         if [[ "$HASH" == "$OLD_HASH" && "${{ steps.mode.outputs.mode }}" == "incremental" ]]; then
@@ -77,6 +97,15 @@ runs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
         fi
 
+    - name: Detect changes (incremental)
+      if: steps.mode.outputs.mode == 'incremental' && steps.content_hash.outputs.skip != 'true'
+      id: changes
+      shell: bash
+      run: |
+        CHANGE_TYPES=$(${{ github.action_path }}/scripts/detect-changes.sh)
+        echo "types=${CHANGE_TYPES}" >> "$GITHUB_OUTPUT"
+        echo "Detected changes: ${CHANGE_TYPES}"
+
     - name: Claude Code integration
       if: steps.content_hash.outputs.skip != 'true'
       uses: anthropics/claude-code-action@v1
@@ -84,13 +113,14 @@ runs:
         claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
         claude_args: "--model claude-opus-4-6"
         prompt: |
-          Read the prompt file at ${{ github.action_path }}/prompts/initial-integration.md.
+          Read the prompt file at ${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md.
           Follow its instructions exactly.
           The project config is:
           - Copilot name: ${{ steps.config.outputs.copilot_name }}
           - Copilot color: ${{ steps.config.outputs.copilot_color }}
           - Domain: ${{ steps.config.outputs.domain }}
           - Description: ${{ steps.config.outputs.description }}
+          ${{ steps.changes.outputs.types && format('- Change categories: {0}', steps.changes.outputs.types) || '' }}
 
     - name: Restore preserved files
       if: steps.mode.outputs.mode == 'incremental'
@@ -108,7 +138,7 @@ runs:
       id: push
       shell: bash
       run: |
-        git checkout -B ${{ inputs.voice_agent_branch }}
+        git checkout -B "${{ inputs.voice_agent_branch }}"
         git add -A
 
         # Compare tree hash to skip no-op pushes (e.g. cosmetic-only changes on main)
@@ -121,20 +151,24 @@ runs:
         fi
 
         git commit -m "chore: rebuild voice-agent from main $(git rev-parse --short main)"
-        git push --force origin ${{ inputs.voice_agent_branch }}
+        git push --force origin "${{ inputs.voice_agent_branch }}"
         echo "skipped=false" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
 
-    - name: Create PR (initial) or auto-push (incremental)
+    - name: Create PR (initial) or notify (incremental)
       if: steps.push.outputs.skipped != 'true'
       shell: bash
       run: |
         MODE="${{ steps.mode.outputs.mode }}"
-        AUTO_MERGE="${{ steps.config.outputs.auto_merge }}"
+        AUTO_MERGE="${{ steps.config.outputs.auto_merge_incremental }}"
         if [[ "$MODE" == "initial" ]] || [[ "$AUTO_MERGE" != "true" ]]; then
           gh pr create \
-            --base "${{ inputs.voice_agent_branch }}" \
-            --head "main" \
+            --base "main" \
+            --head "${{ inputs.voice_agent_branch }}" \
             --title "Voice Agent Integration" \
             --body "Auto-generated voice agent integration. Please review form field registrations carefully." \
             || echo "PR already exists"
         fi
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}

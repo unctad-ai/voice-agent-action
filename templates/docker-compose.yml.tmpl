@@ -13,8 +13,8 @@ services:
       - backend
   backend:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
+      dockerfile: Dockerfile
     expose:
       - "3001"
     environment:
