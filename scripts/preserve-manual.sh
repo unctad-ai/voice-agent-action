@@ -42,6 +42,11 @@ while IFS= read -r file; do
     continue
   fi
 
+  # Skip build artifacts
+  case "$file" in
+    node_modules/*|build/*|dist/*|server/node_modules/*|package-lock.json) continue ;;
+  esac
+
   # Skip auto-generated files
   SKIP=false
   for auto in "${AUTO_GENERATED[@]}"; do
