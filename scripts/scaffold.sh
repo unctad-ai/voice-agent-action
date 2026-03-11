@@ -55,7 +55,11 @@ add_dep() {
 add_dep "@unctad-ai/voice-agent-core" "$VERSION"
 add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
 add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
-add_dep "@ai-sdk/react" "^1.0.0"
+
+# Peer dependencies required by voice-agent-core
+add_dep "@ai-sdk/react" "^3.0.0"
+add_dep "ai" "^6.0.0"
+add_dep "react-router" "^7.0.0"
 
 # Peer dependencies required by voice-agent-ui
 add_dep "simplex-noise" "^4.0.0"
