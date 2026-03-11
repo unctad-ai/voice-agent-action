@@ -181,18 +181,7 @@ runs:
 
     - name: Clean build artifacts before commit
       shell: bash
-      run: |
-        rm -rf node_modules build dist server/node_modules
-        # Ensure .gitignore excludes build artifacts on the voice-agent branch
-        if ! grep -qx 'node_modules' .gitignore 2>/dev/null; then
-          echo 'node_modules' >> .gitignore
-        fi
-        if ! grep -qx 'build' .gitignore 2>/dev/null; then
-          echo 'build' >> .gitignore
-        fi
-        if ! grep -qx 'dist' .gitignore 2>/dev/null; then
-          echo 'dist' >> .gitignore
-        fi
+      run: rm -rf node_modules build dist server/node_modules
 
     - name: Update voice-agent branch
       id: push

@@ -22,6 +22,7 @@ cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
 cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
 cp "$TEMPLATES/nginx.conf" nginx.conf
 cp "$TEMPLATES/.dockerignore" .dockerignore
+cp "$TEMPLATES/.gitignore" .gitignore
 
 # Substitute copilot name in docker-compose (portable sed -i)
 COPILOT="${COPILOT_NAME:-Assistant}"
