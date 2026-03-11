@@ -113,21 +113,33 @@ runs:
         echo "types=${CHANGE_TYPES}" >> "$GITHUB_OUTPUT"
         echo "Detected changes: ${CHANGE_TYPES}"
 
+    - name: Setup Node.js
+      if: steps.content_hash.outputs.skip != 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
     - name: Claude Code integration
       if: steps.content_hash.outputs.skip != 'true'
-      uses: anthropics/claude-code-action@v1
-      with:
-        claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
-        claude_args: "--model claude-opus-4-6"
-        prompt: |
-          Read the prompt file at ${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md.
-          Follow its instructions exactly.
-          The project config is:
-          - Copilot name: ${{ steps.config.outputs.copilot_name }}
-          - Copilot color: ${{ steps.config.outputs.copilot_color }}
-          - Domain: ${{ steps.config.outputs.domain }}
-          - Description: ${{ steps.config.outputs.description }}
-          ${{ steps.changes.outputs.types && format('- Change categories: {0}', steps.changes.outputs.types) || '' }}
+      shell: bash
+      run: |
+        PROMPT_FILE="${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md"
+        PROMPT="$(cat "$PROMPT_FILE")
+
+        The project config is:
+        - Copilot name: ${{ steps.config.outputs.copilot_name }}
+        - Copilot color: ${{ steps.config.outputs.copilot_color }}
+        - Domain: ${{ steps.config.outputs.domain }}
+        - Description: ${{ steps.config.outputs.description }}
+        ${{ steps.changes.outputs.types && format('- Change categories: {0}', steps.changes.outputs.types) || '' }}"
+
+        npx -y @anthropic-ai/claude-code@latest \
+          --model claude-opus-4-6 \
+          --print \
+          --allowedTools "Edit,Read,Write,Bash,Glob,Grep" \
+          "$PROMPT"
+      env:
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
 
     - name: Restore preserved files
       if: steps.mode.outputs.mode == 'incremental'
