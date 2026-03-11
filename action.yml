@@ -128,20 +128,20 @@ runs:
       shell: bash
       run: |
         PROMPT_FILE="${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md"
-        PROMPT="$(cat "$PROMPT_FILE")
 
-        The project config is:
-        - Copilot name: ${{ steps.config.outputs.copilot_name }}
-        - Copilot color: ${{ steps.config.outputs.copilot_color }}
-        - Domain: ${{ steps.config.outputs.domain }}
-        - Description: ${{ steps.config.outputs.description }}
-        ${{ steps.changes.outputs.types && format('- Change categories: {0}', steps.changes.outputs.types) || '' }}"
-
-        npx -y @anthropic-ai/claude-code@latest \
+        {
+          cat "$PROMPT_FILE"
+          echo ""
+          echo "The project config is:"
+          echo "- Copilot name: ${{ steps.config.outputs.copilot_name }}"
+          echo "- Copilot color: ${{ steps.config.outputs.copilot_color }}"
+          echo "- Domain: ${{ steps.config.outputs.domain }}"
+          echo "- Description: ${{ steps.config.outputs.description }}"
+          ${{ steps.changes.outputs.types && format('echo "- Change categories: {0}"', steps.changes.outputs.types) || 'true' }}
+        } | npx -y @anthropic-ai/claude-code@latest \
           --model claude-opus-4-6 \
           --print \
-          --allowedTools "Edit,Read,Write,Bash,Glob,Grep" \
-          "$PROMPT"
+          --allowedTools "Edit,Read,Write,Bash,Glob,Grep"
       env:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
 
