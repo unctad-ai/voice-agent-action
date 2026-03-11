@@ -59,6 +59,21 @@ add_dep "@ai-sdk/react" "^1.0.0"
 
 echo "=== Scaffold: patching vite.config.ts ==="
 
+# Figma Make generates JSX in .ts files — tell esbuild to handle it
+if ! grep -q "esbuild" vite.config.ts 2>/dev/null; then
+  node -e "
+    let config = require('fs').readFileSync('vite.config.ts', 'utf8');
+    config = config.replace(
+      /export default defineConfig\(\{/,
+      'export default defineConfig({\n  esbuild: { loader: { \".ts\": \"tsx\" } },'
+    );
+    require('fs').writeFileSync('vite.config.ts', config);
+    console.log('  Added esbuild .ts→tsx loader');
+  "
+else
+  echo "  esbuild config already present"
+fi
+
 # Add build.outDir: 'build' if not present
 if ! grep -q "outDir.*['\"]build['\"]" vite.config.ts 2>/dev/null; then
   # Use node for reliable AST-level patching
