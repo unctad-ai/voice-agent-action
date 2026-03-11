@@ -1,0 +1,32 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_BACKEND_URL=
+        - VITE_API_KEY=${CLIENT_API_KEY:-}
+        - VITE_COPILOT_NAME=${COPILOT_NAME:-__COPILOT_NAME__}
+    expose:
+      - "80"
+    depends_on:
+      - backend
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    expose:
+      - "3001"
+    environment:
+      - PORT=3001
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - CLIENT_API_KEY=${CLIENT_API_KEY:-}
+      - QWEN3_TTS_URL=${QWEN3_TTS_URL:-}
+      - KYUTAI_STT_URL=${KYUTAI_STT_URL:-}
+      - POCKET_TTS_URL=${POCKET_TTS_URL:-}
+    volumes:
+      - persona-data:/app/data/persona
+
+volumes:
+  persona-data:
