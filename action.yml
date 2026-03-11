@@ -82,7 +82,7 @@ runs:
       uses: anthropics/claude-code-action@v1
       with:
         claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
-        model: claude-opus-4-6
+        claude_args: "--model claude-opus-4-6"
         prompt: |
           Read the prompt file at ${{ github.action_path }}/prompts/initial-integration.md.
           Follow its instructions exactly.
