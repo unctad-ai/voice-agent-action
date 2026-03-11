@@ -65,10 +65,10 @@ if ! grep -q "esbuild" vite.config.ts 2>/dev/null; then
     let config = require('fs').readFileSync('vite.config.ts', 'utf8');
     config = config.replace(
       /export default defineConfig\(\{/,
-      'export default defineConfig({\n  esbuild: { loader: { \".ts\": \"tsx\" } },'
+      'export default defineConfig({\n  esbuild: { include: /src\/.*\\.ts\$/, loader: \"tsx\" },'
     );
     require('fs').writeFileSync('vite.config.ts', config);
-    console.log('  Added esbuild .ts→tsx loader');
+    console.log('  Added esbuild .ts→tsx loader for src/');
   "
 else
   echo "  esbuild config already present"
