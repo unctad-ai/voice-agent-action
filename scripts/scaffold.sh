@@ -57,6 +57,12 @@ add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
 add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
 add_dep "@ai-sdk/react" "^1.0.0"
 
+# Peer dependencies required by voice-agent-ui
+add_dep "simplex-noise" "^4.0.0"
+add_dep "motion" "^12.0.0"
+add_dep "lucide-react" "^0.577.0"
+add_dep "@gooney-001/ten-vad-lib" "^1.0.2"
+
 echo "=== Scaffold: patching vite.config.ts ==="
 
 # Fix Figma Make quirk: some projects have JSX in .ts files (should be .tsx)
