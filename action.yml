@@ -58,7 +58,14 @@ runs:
       shell: bash
       run: |
         if git rev-parse --verify "origin/${{ inputs.voice_agent_branch }}" &>/dev/null; then
-          echo "mode=incremental" >> "$GITHUB_OUTPUT"
+          # Branch exists, but was it actually processed by the action?
+          # Check for voice-config.ts — if missing, the branch was created manually
+          if git show "origin/${{ inputs.voice_agent_branch }}:src/voice-config.ts" &>/dev/null; then
+            echo "mode=incremental" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch exists but src/voice-config.ts missing — treating as initial"
+            echo "mode=initial" >> "$GITHUB_OUTPUT"
+          fi
         else
           echo "mode=initial" >> "$GITHUB_OUTPUT"
         fi
