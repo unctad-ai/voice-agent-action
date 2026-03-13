@@ -44,7 +44,7 @@ runs:
             const m = line.match(/^(\w+):\s*(.+)/);
             if (m) config[m[1]] = m[2].replace(/^[\"']|[\"']$/g, '').trim();
           });
-          const keys = ['copilot_name','copilot_color','domain','description','voice_agent_version','auto_merge_incremental'];
+          const keys = ['copilot_name','copilot_color','domain','description','voice_agent_version','auto_merge_incremental','site_title','farewell_message','system_prompt_intro','greeting_message','avatar_url','language'];
           const out = [];
           keys.forEach(k => out.push(k + '=' + (config[k] || '')));
           // Defaults
@@ -60,10 +60,11 @@ runs:
         if git rev-parse --verify "origin/${{ inputs.voice_agent_branch }}" &>/dev/null; then
           # Branch exists, but was it actually processed by the action?
           # Check for voice-config.ts — if missing, the branch was created manually
-          if git show "origin/${{ inputs.voice_agent_branch }}:src/voice-config.ts" &>/dev/null; then
+          if git show "origin/${{ inputs.voice_agent_branch }}:src/voice-config.ts" &>/dev/null && \
+             git show "origin/${{ inputs.voice_agent_branch }}:server/voice-config.ts" &>/dev/null; then
             echo "mode=incremental" >> "$GITHUB_OUTPUT"
           else
-            echo "Branch exists but src/voice-config.ts missing — treating as initial"
+            echo "Branch exists but voice-config.ts missing — treating as initial"
             echo "mode=initial" >> "$GITHUB_OUTPUT"
           fi
         else
@@ -91,7 +92,15 @@ runs:
       run: ${{ github.action_path }}/scripts/scaffold.sh
       env:
         COPILOT_NAME: ${{ steps.config.outputs.copilot_name }}
+        COPILOT_COLOR: ${{ steps.config.outputs.copilot_color }}
         VOICE_AGENT_VERSION: ${{ steps.config.outputs.voice_agent_version }}
+        DESCRIPTION: ${{ steps.config.outputs.description }}
+        SITE_TITLE: ${{ steps.config.outputs.site_title }}
+        FAREWELL_MESSAGE: ${{ steps.config.outputs.farewell_message }}
+        SYSTEM_PROMPT_INTRO: ${{ steps.config.outputs.system_prompt_intro }}
+        GREETING_MESSAGE: ${{ steps.config.outputs.greeting_message }}
+        AVATAR_URL: ${{ steps.config.outputs.avatar_url }}
+        LANGUAGE: ${{ steps.config.outputs.language }}
 
     - name: Content hash check (skip Claude Code if unchanged)
       id: content_hash
