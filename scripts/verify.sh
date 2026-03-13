@@ -3,6 +3,36 @@ set -euo pipefail
 
 FAILED=0
 
+# Critical file checks (fast — run before expensive Docker builds)
+echo "=== Verify: Critical files ==="
+for f in server/voice-config.ts src/voice-config.ts server/index.ts; do
+  if [ ! -f "$f" ]; then
+    echo "::error::Missing critical file: $f"
+    FAILED=1
+  fi
+done
+
+# Check that server/index.ts local imports resolve
+node -e "
+  const fs = require('fs');
+  const src = fs.readFileSync('server/index.ts', 'utf8');
+  const imports = [...src.matchAll(/from ['\"]\.\/([^'\"]+)['\"]/g)].map(m => m[1]);
+  let fail = false;
+  for (const imp of imports) {
+    const base = 'server/' + imp.replace(/\.js$/, '');
+    if (!fs.existsSync(base + '.ts') && !fs.existsSync(base + '.js')) {
+      console.error('::error::Unresolved import in server/index.ts: ./' + imp);
+      fail = true;
+    }
+  }
+  if (fail) process.exit(1);
+" || FAILED=1
+
+if [ "$FAILED" -ne 0 ]; then
+  echo "=== Verify: FAILED (critical files) ==="
+  exit 1
+fi
+
 # Check Docker availability
 if ! command -v docker &>/dev/null; then
   echo "::warning::Docker not available — skipping Docker build verification"
