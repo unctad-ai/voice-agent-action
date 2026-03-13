@@ -8,29 +8,95 @@ Read `src/App.tsx` and detect which router pattern the project uses:
 
 **Pattern A — `<BrowserRouter>` with `<Routes>` (classic):**
 ```tsx
-import { VoiceAgentProvider } from '@unctad-ai/voice-agent-core';
-import { GlassCopilotPanel } from '@unctad-ai/voice-agent-ui';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { VoiceAgentProvider, VoiceOnboarding, VoiceA11yAnnouncer } from '@unctad-ai/voice-agent-ui';
+import type { OrbState } from '@unctad-ai/voice-agent-core';
 import { siteConfig } from './voice-config';
 
-// Inside the BrowserRouter, wrap existing content:
-<VoiceAgentProvider config={siteConfig}>
-  {/* existing Routes */}
-  <GlassCopilotPanel />
-</VoiceAgentProvider>
+const GlassCopilotPanel = lazy(() =>
+  import('@unctad-ai/voice-agent-ui').then(m => ({ default: m.GlassCopilotPanel }))
+);
+
+export default function App() {
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [orbState, setOrbState] = useState<OrbState>('idle');
+
+  // Ctrl+Shift+V keyboard shortcut
+  const toggleVoice = useCallback(() => setIsVoiceOpen(prev => !prev), []);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'V') { e.preventDefault(); toggleVoice(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleVoice]);
+
+  return (
+    <Router>
+      <VoiceAgentProvider config={siteConfig}>
+        {/* existing Routes */}
+        {!isVoiceOpen && <VoiceOnboarding onTryNow={() => setIsVoiceOpen(true)} />}
+        <Suspense fallback={null}>
+          <GlassCopilotPanel
+            isOpen={isVoiceOpen}
+            onOpen={() => setIsVoiceOpen(true)}
+            onClose={() => setIsVoiceOpen(false)}
+            onStateChange={setOrbState}
+          />
+        </Suspense>
+        <VoiceA11yAnnouncer isOpen={isVoiceOpen} orbState={orbState} />
+      </VoiceAgentProvider>
+    </Router>
+  );
+}
 ```
 
 **Pattern B — `createBrowserRouter` + `<RouterProvider>` (data router):**
 You CANNOT wrap children inside `<RouterProvider>`. Instead, find the root layout component (usually referenced in the router config as `element` or `Component` on the top-level route) and wrap its content:
 ```tsx
 // In the root layout component (e.g. RootLayout.tsx or the component used by the "/" route):
-import { VoiceAgentProvider } from '@unctad-ai/voice-agent-core';
-import { GlassCopilotPanel } from '@unctad-ai/voice-agent-ui';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { VoiceAgentProvider, VoiceOnboarding, VoiceA11yAnnouncer } from '@unctad-ai/voice-agent-ui';
+import type { OrbState } from '@unctad-ai/voice-agent-core';
 import { siteConfig } from './voice-config';
+
+const GlassCopilotPanel = lazy(() =>
+  import('@unctad-ai/voice-agent-ui').then(m => ({ default: m.GlassCopilotPanel }))
+);
+
+function VoiceLayer() {
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [orbState, setOrbState] = useState<OrbState>('idle');
+
+  const toggleVoice = useCallback(() => setIsVoiceOpen(prev => !prev), []);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'V') { e.preventDefault(); toggleVoice(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleVoice]);
+
+  return (
+    <>
+      {!isVoiceOpen && <VoiceOnboarding onTryNow={() => setIsVoiceOpen(true)} />}
+      <Suspense fallback={null}>
+        <GlassCopilotPanel
+          isOpen={isVoiceOpen}
+          onOpen={() => setIsVoiceOpen(true)}
+          onClose={() => setIsVoiceOpen(false)}
+          onStateChange={setOrbState}
+        />
+      </Suspense>
+      <VoiceA11yAnnouncer isOpen={isVoiceOpen} orbState={orbState} />
+    </>
+  );
+}
 
 // Wrap the Outlet:
 <VoiceAgentProvider config={siteConfig}>
   <Outlet />
-  <GlassCopilotPanel />
+  <VoiceLayer />
 </VoiceAgentProvider>
 ```
 
@@ -38,7 +104,7 @@ If the project uses a single root `<App>` component with `RouterProvider` inside
 ```tsx
 <VoiceAgentProvider config={siteConfig}>
   <RouterProvider router={router} />
-  <GlassCopilotPanel />
+  <VoiceLayer />
 </VoiceAgentProvider>
 ```
 
