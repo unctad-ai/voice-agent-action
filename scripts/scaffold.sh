@@ -52,9 +52,25 @@ add_dep() {
   fi
 }
 
+add_dev_dep() {
+  local pkg="$1" ver="$2"
+  if ! grep -q "\"$pkg\"" package.json; then
+    node -e "
+      const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+      pkg.devDependencies = pkg.devDependencies || {};
+      pkg.devDependencies['$pkg'] = '$ver';
+      require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+    "
+    echo "  Added $pkg@$ver (dev)"
+  else
+    echo "  $pkg already present"
+  fi
+}
+
 add_dep "@unctad-ai/voice-agent-core" "$VERSION"
 add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
 add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
+add_dev_dep "vite-plugin-static-copy" "^2.3.0"
 
 # Auto-resolve peer dependencies from published packages (zero maintenance).
 # Reads peerDependencies from the npm registry so scaffold.sh never needs
@@ -134,6 +150,36 @@ if ! grep -q "ten-vad-glue" vite.config.ts 2>/dev/null; then
   "
 else
   echo "  ten-vad-glue alias already present"
+fi
+
+# Add vite-plugin-static-copy for ten_vad.wasm (unhashed copy to build output)
+if ! grep -q "vite-plugin-static-copy" vite.config.ts 2>/dev/null; then
+  node -e "
+    let config = require('fs').readFileSync('vite.config.ts', 'utf8');
+    // Add import
+    if (!config.includes('viteStaticCopy')) {
+      config = config.replace(
+        /import react from/,
+        \"import { viteStaticCopy } from 'vite-plugin-static-copy';\nimport react from\"
+      );
+    }
+    // Add plugin after react()
+    if (config.includes('plugins')) {
+      config = config.replace(
+        /react\(\)/,
+        'react(),\n      viteStaticCopy({\n        targets: [\n          {\n            src: \"node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm\",\n            dest: \"./\",\n          },\n        ],\n      })'
+      );
+    } else {
+      config = config.replace(
+        /export default defineConfig\(\{/,
+        \"export default defineConfig({\n  plugins: [\n    react(),\n    viteStaticCopy({\n      targets: [{ src: 'node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm', dest: './' }],\n    }),\n  ],\"
+      );
+    }
+    require('fs').writeFileSync('vite.config.ts', config);
+    console.log('  Added viteStaticCopy plugin for ten_vad.wasm');
+  "
+else
+  echo "  vite-plugin-static-copy already configured"
 fi
 
 echo "=== Scaffold complete ==="
