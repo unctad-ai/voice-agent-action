@@ -121,27 +121,25 @@ runs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Restore Claude-generated files (when skipping Claude Code)
+    - name: Restore Claude-modified files (when skipping Claude Code)
       if: steps.content_hash.outputs.skip == 'true'
       shell: bash
       run: |
-        # When Claude Code is skipped, restore its output files from the existing branch
-        CLAUDE_FILES=(
-          "src/voice-config.ts"
-          "server/voice-config.ts"
-          "src/App.tsx"
-        )
-        # Also restore any form component modifications
-        for f in $(git ls-tree -r --name-only "origin/${{ inputs.voice_agent_branch }}" -- src/components/ 2>/dev/null || true); do
-          CLAUDE_FILES+=("$f")
-        done
-        for f in "${CLAUDE_FILES[@]}"; do
-          if git show "origin/${{ inputs.voice_agent_branch }}:$f" &>/dev/null; then
+        # When Claude Code is skipped, restore ALL src/ files from the existing
+        # voice-agent branch that differ from main. This covers voice-config.ts,
+        # App.tsx, component modifications, and any other Claude-patched files
+        # (e.g. services.ts import type fixes).
+        BRANCH="origin/${{ inputs.voice_agent_branch }}"
+        RESTORED=0
+        for f in $(git diff --name-only origin/main "$BRANCH" -- src/ server/voice-config.ts 2>/dev/null || true); do
+          if git show "${BRANCH}:${f}" &>/dev/null; then
             mkdir -p "$(dirname "$f")"
-            git show "origin/${{ inputs.voice_agent_branch }}:$f" > "$f"
+            git show "${BRANCH}:${f}" > "$f"
             echo "  Restored: $f"
+            RESTORED=$((RESTORED + 1))
           fi
         done
+        echo "  Total restored: $RESTORED files"
 
     - name: Detect changes (incremental)
       if: steps.mode.outputs.mode == 'incremental' && steps.content_hash.outputs.skip != 'true'
