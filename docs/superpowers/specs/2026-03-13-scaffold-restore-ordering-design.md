@@ -49,23 +49,21 @@ Scaffold always runs and always wins for its files. Restore always wins for Clau
 
 When Claude Code runs (skip=false), it reads the fresh scaffold output and patches source files. When skipped, restored files + fresh scaffold = correct state.
 
-### 2. Add `.voice-agent.yml` to content hash
+### 2. Always restore Claude-modified files in incremental mode
 
-Include the config file in the hash so config-only changes (color, greeting, language) trigger a Claude Code re-run:
+The restore step was previously conditioned on `skip == 'true'` (Claude Code skipped). This caused a bug: when the hash busted for non-source reasons, Claude Code ran against clean main files (no integration) and the incremental prompt assumed integration already existed.
 
-```bash
-CLAUDE_INPUTS=".voice-agent.yml src/data/services.ts src/App.tsx"
-CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -type f \( -name '*Application*' -o -name '*Form*' \) 2>/dev/null || true)"
-```
+Fix: restore runs whenever `mode == 'incremental'`, regardless of whether Claude Code will also run. Scaffold then overwrites generated files. When Claude Code runs, it patches on top of the restored integration.
 
-This ensures that changing `copilot_color` or `language` in `.voice-agent.yml` busts the cache.
+**Note:** `.voice-agent.yml` is deliberately NOT included in the content hash. Config changes are handled entirely by scaffold (template substitution), not Claude Code. Including it would bust the cache unnecessarily and risk the integration-loss bug described above.
 
 ## Changes
 
 ### `action.yml`
 
-1. **Move "Scaffold from templates" step** (currently step after "Preserve manual additions") to after "Restore Claude-modified files (when skipping Claude Code)"
-2. **Update content hash inputs** to include `.voice-agent.yml`
+1. **Move "Scaffold from templates" step** to after "Restore Claude-modified files"
+2. **Change restore condition** from `skip == 'true'` to `mode == 'incremental'`
+3. **Content hash** stays source-only (no `.voice-agent.yml`)
 
 ### No other files change
 
