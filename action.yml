@@ -91,8 +91,9 @@ runs:
       id: content_hash
       shell: bash
       run: |
-        # Hash source files + config — if unchanged, skip the expensive Claude Code step
-        CLAUDE_INPUTS=".voice-agent.yml src/data/services.ts src/App.tsx"
+        # Hash source files that Claude Code reads — if unchanged, skip the expensive step
+        # Note: .voice-agent.yml is NOT included — config changes are handled by scaffold
+        CLAUDE_INPUTS="src/data/services.ts src/App.tsx"
         CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -type f \( -name '*Application*' -o -name '*Form*' \) 2>/dev/null || true)"
         # Filter to only files that exist (cat fails with pipefail if none exist)
         EXISTING_INPUTS=""
@@ -115,14 +116,13 @@ runs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Restore Claude-modified files (when skipping Claude Code)
-      if: steps.content_hash.outputs.skip == 'true'
+    - name: Restore Claude-modified files
+      if: steps.mode.outputs.mode == 'incremental'
       shell: bash
       run: |
-        # When Claude Code is skipped, restore ALL src/ files from the existing
-        # voice-agent branch that differ from main. This covers voice-config.ts,
-        # App.tsx, component modifications, and any other Claude-patched files
-        # (e.g. services.ts import type fixes).
+        # Always restore Claude's previous work in incremental mode.
+        # Scaffold runs next and overwrites generated files (voice-config.ts).
+        # When Claude Code runs, it patches on top of restored integration.
         BRANCH="origin/${{ inputs.voice_agent_branch }}"
         RESTORED=0
         for f in $(git diff --name-only origin/main "$BRANCH" -- src/ server/voice-config.ts 2>/dev/null || true); do
