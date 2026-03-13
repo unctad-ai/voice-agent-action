@@ -37,6 +37,7 @@ AVATAR="${AVATAR_URL:-}"
 export TEMPLATES COPILOT_NAME="${COPILOT}" COPILOT_COLOR="${COPILOT_COLOR:-#1B5E20}"
 export SITE_TITLE FAREWELL_MESSAGE="${FAREWELL}" SYSTEM_PROMPT_INTRO="${SYSTEM_INTRO}"
 export GREETING_MESSAGE="${GREETING}" AVATAR_URL="${AVATAR}" DESCRIPTION="${DESCRIPTION:-}"
+export LANGUAGE="${LANGUAGE:-en}"
 
 node -e "
   const fs = require('fs');
@@ -55,12 +56,12 @@ node -e "
   };
 
   // Server config
-  const serverSubs = { ...baseSubs, '__SYSTEM_PROMPT_INTRO__': process.env.SYSTEM_PROMPT_INTRO || '' };
+  const serverSubs = { ...baseSubs, '__SYSTEM_PROMPT_INTRO__': process.env.SYSTEM_PROMPT_INTRO || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
   fs.writeFileSync('server/voice-config.ts', sub(T + '/server/voice-config.ts.tmpl', serverSubs));
   console.log('  Created server/voice-config.ts');
 
   // Client config
-  const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '' };
+  const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
   fs.mkdirSync('src', { recursive: true });
   fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
   console.log('  Created src/voice-config.ts');
