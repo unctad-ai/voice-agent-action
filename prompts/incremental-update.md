@@ -2,6 +2,10 @@
 
 The designer updated the React project on `main`. Analyze what changed and update voice agent integration files accordingly.
 
+## Placeholder Detection
+
+If `server/voice-config.ts` or `src/voice-config.ts` only contain the scaffold placeholder (a single `general-help` service), treat this as an initial integration for those files — extract real services from the codebase using the process described in `initial-integration.md` sections 2 and 3.
+
 ## Context
 
 The action provides these inputs:

@@ -110,7 +110,9 @@ If the project uses a single root `<App>` component with `RouterProvider` inside
 
 Do NOT restructure existing routes or layout — only wrap them.
 
-## 2. Generate `src/voice-config.ts`
+## 2. Enhance the scaffolded `src/voice-config.ts`
+
+> The scaffold has already created this file with a placeholder service and defaults from `.voice-agent.yml`. Replace the placeholder service array with real services extracted from the codebase. Keep the existing config fields (copilotName, colors, farewellMessage, etc.) — only update services, categories, categoryMap, synonyms, routeMap, and getServiceFormRoute.
 
 ### 2.1 Find services
 
@@ -149,7 +151,9 @@ Generate `src/voice-config.ts` with:
 
 Export as `siteConfig` with the `SiteConfig` type from `@unctad-ai/voice-agent-core`.
 
-## 3. Generate `server/voice-config.ts`
+## 3. Enhance the scaffolded `server/voice-config.ts`
+
+> Same as above — the scaffold created a bootable default. Replace the placeholder service with real services. Additionally add extraServerTools and coreIds based on the project's domain.
 
 Mirror the client config structure. Additionally:
 - Add `extraServerTools` if the project has domain-specific tool opportunities (e.g. `recommendServices`, `compareServices`, `searchServices`)
