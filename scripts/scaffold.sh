@@ -25,9 +25,13 @@ sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/server/.env.example" > server/
 echo "=== Scaffold: generating voice-config files ==="
 
 SITE_TITLE="${SITE_TITLE:-$DESCRIPTION}"
-FAREWELL="${FAREWELL_MESSAGE:-Thank you for using ${COPILOT}. Have a great day!}"
-SYSTEM_INTRO="${SYSTEM_PROMPT_INTRO:-You are ${COPILOT}, the virtual assistant for ${DESCRIPTION:-this portal}.}"
-GREETING="${GREETING_MESSAGE:-Hi, I'm ${COPILOT}. How can I help you today?}"
+_DEFAULT_FAREWELL="Thank you for using ${COPILOT}. Have a great day!"
+FAREWELL="${FAREWELL_MESSAGE:-$_DEFAULT_FAREWELL}"
+_DEFAULT_DESC="${DESCRIPTION:-this portal}"
+_DEFAULT_SYSTEM="You are ${COPILOT}, the virtual assistant for ${_DEFAULT_DESC}."
+SYSTEM_INTRO="${SYSTEM_PROMPT_INTRO:-$_DEFAULT_SYSTEM}"
+_DEFAULT_GREETING="Hi, I am ${COPILOT}. How can I help you today?"
+GREETING="${GREETING_MESSAGE:-$_DEFAULT_GREETING}"
 AVATAR="${AVATAR_URL:-}"
 
 export TEMPLATES COPILOT_NAME="${COPILOT}" COPILOT_COLOR="${COPILOT_COLOR:-#1B5E20}"
