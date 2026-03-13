@@ -21,6 +21,47 @@ COPILOT="${COPILOT_NAME:-Assistant}"
 sed "s|__VOICE_AGENT_VERSION__|${VERSION}|g" "$TEMPLATES/server/package.json.tmpl" > server/package.json
 sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/server/.env.example" > server/.env.example
 
+# Voice config files (node substitution — safe for all characters in user values)
+echo "=== Scaffold: generating voice-config files ==="
+
+SITE_TITLE="${SITE_TITLE:-$DESCRIPTION}"
+FAREWELL="${FAREWELL_MESSAGE:-Thank you for using ${COPILOT}. Have a great day!}"
+SYSTEM_INTRO="${SYSTEM_PROMPT_INTRO:-You are ${COPILOT}, the virtual assistant for ${DESCRIPTION:-this portal}.}"
+GREETING="${GREETING_MESSAGE:-Hi, I'm ${COPILOT}. How can I help you today?}"
+AVATAR="${AVATAR_URL:-}"
+
+export TEMPLATES COPILOT_NAME="${COPILOT}" COPILOT_COLOR="${COPILOT_COLOR:-#1B5E20}"
+export SITE_TITLE FAREWELL_MESSAGE="${FAREWELL}" SYSTEM_PROMPT_INTRO="${SYSTEM_INTRO}"
+export GREETING_MESSAGE="${GREETING}" AVATAR_URL="${AVATAR}" DESCRIPTION="${DESCRIPTION:-}"
+
+node -e "
+  const fs = require('fs');
+  const T = process.env.TEMPLATES;
+  const sub = (tpl, subs) => {
+    let t = fs.readFileSync(tpl, 'utf8');
+    for (const [k, v] of Object.entries(subs)) t = t.split(k).join(v);
+    return t;
+  };
+
+  const baseSubs = {
+    '__COPILOT_NAME__': process.env.COPILOT_NAME || 'Assistant',
+    '__COPILOT_COLOR__': process.env.COPILOT_COLOR || '#1B5E20',
+    '__SITE_TITLE__': process.env.SITE_TITLE || '',
+    '__FAREWELL_MESSAGE__': process.env.FAREWELL_MESSAGE || '',
+  };
+
+  // Server config
+  const serverSubs = { ...baseSubs, '__SYSTEM_PROMPT_INTRO__': process.env.SYSTEM_PROMPT_INTRO || '' };
+  fs.writeFileSync('server/voice-config.ts', sub(T + '/server/voice-config.ts.tmpl', serverSubs));
+  console.log('  Created server/voice-config.ts');
+
+  // Client config
+  const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '' };
+  fs.mkdirSync('src', { recursive: true });
+  fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
+  console.log('  Created src/voice-config.ts');
+"
+
 # Docker / deploy files
 cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
 cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
