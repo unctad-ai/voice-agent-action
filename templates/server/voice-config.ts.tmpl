@@ -1,0 +1,43 @@
+import type { SiteConfig } from '@unctad-ai/voice-agent-core';
+
+const services = [
+  { id: 'general-help', title: 'General assistance', category: 'General' },
+];
+
+const categories = [
+  { title: 'General', services },
+];
+
+const categoryMap: Record<string, string> = {};
+for (const s of services) {
+  categoryMap[s.id] = s.category;
+}
+
+const synonyms: Record<string, string[]> = {};
+
+const routeMap: Record<string, string> = {
+  home: '/',
+};
+
+function getServiceFormRoute(_serviceId: string): string | null {
+  return null;
+}
+
+export const siteConfig: SiteConfig = {
+  copilotName: '__COPILOT_NAME__',
+  siteTitle: '__SITE_TITLE__',
+  farewellMessage: '__FAREWELL_MESSAGE__',
+  systemPromptIntro: '__SYSTEM_PROMPT_INTRO__',
+  colors: {
+    primary: '__COPILOT_COLOR__',
+    processing: '__COPILOT_COLOR__',
+    speaking: '__COPILOT_COLOR__',
+    glow: '__COPILOT_COLOR__66',
+  },
+  services,
+  categories,
+  synonyms,
+  categoryMap,
+  routeMap,
+  getServiceFormRoute,
+};
