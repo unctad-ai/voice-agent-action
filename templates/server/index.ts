@@ -20,6 +20,22 @@ const voice = createVoiceRoutes({
 app.post('/api/chat', voice.chat);
 app.use('/api/stt', voice.stt);
 app.use('/api/tts', voice.tts);
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', async (_req, res) => {
+  const llm = { status: 'ok' as const };
+  if (!process.env.GROQ_API_KEY) {
+    return res.json({ status: 'ok', llm: { status: 'error', error: { message: 'GROQ_API_KEY not configured' } } });
+  }
+  try {
+    // Lightweight validation: list models endpoint (no tokens consumed)
+    const r = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) throw new Error(`Groq API returned ${r.status}`);
+  } catch (e: any) {
+    return res.json({ status: 'ok', llm: { status: 'error', error: { message: e.message } } });
+  }
+  res.json({ status: 'ok', llm });
+});
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
