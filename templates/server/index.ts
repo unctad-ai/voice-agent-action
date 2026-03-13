@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
 import { createVoiceRoutes } from '@unctad-ai/voice-agent-server';
 import { siteConfig } from './voice-config.js';
 
@@ -9,17 +10,22 @@ const port = parseInt(process.env.PORT || '3001');
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 
+const personaDir = process.env.PERSONA_DIR || './data/persona';
+if (!fs.existsSync(personaDir)) fs.mkdirSync(personaDir, { recursive: true });
+
 const voice = createVoiceRoutes({
   config: siteConfig,
   groqApiKey: process.env.GROQ_API_KEY!,
   kyutaiSttUrl: process.env.KYUTAI_STT_URL,
   qwen3TtsUrl: process.env.QWEN3_TTS_URL,
   pocketTtsUrl: process.env.POCKET_TTS_URL,
+  personaDir,
 });
 
 app.post('/api/chat', voice.chat);
 app.use('/api/stt', voice.stt);
 app.use('/api/tts', voice.tts);
+if (voice.persona) app.use('/api/agent', voice.persona);
 app.get('/api/health', async (_req, res) => {
   const llm = { status: 'ok' as const };
   if (!process.env.GROQ_API_KEY) {
