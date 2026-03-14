@@ -58,8 +58,6 @@ runs:
       shell: bash
       run: |
         if git rev-parse --verify "origin/${{ inputs.voice_agent_branch }}" &>/dev/null; then
-          # Branch exists, but was it actually processed by the action?
-          # Check for voice-config.ts — if missing, the branch was created manually
           if git show "origin/${{ inputs.voice_agent_branch }}:src/voice-config.ts" &>/dev/null && \
              git show "origin/${{ inputs.voice_agent_branch }}:server/voice-config.ts" &>/dev/null; then
             echo "mode=incremental" >> "$GITHUB_OUTPUT"
@@ -81,21 +79,18 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
 
-    - name: Preserve manual additions
+    - name: Save ignored files
       if: steps.mode.outputs.mode == 'incremental'
-      id: preserve
       shell: bash
-      run: ${{ github.action_path }}/scripts/preserve-manual.sh "${{ inputs.voice_agent_branch }}"
+      run: ${{ github.action_path }}/scripts/save-ignored.sh "${{ inputs.voice_agent_branch }}"
 
     - name: Content hash check (skip Claude Code if unchanged)
       id: content_hash
       shell: bash
       run: |
         # Hash source files that Claude Code reads — if unchanged, skip the expensive step
-        # Note: .voice-agent.yml is NOT included — config changes are handled by scaffold
         CLAUDE_INPUTS="src/data/services.ts src/App.tsx"
         CLAUDE_INPUTS="$CLAUDE_INPUTS $(find src/components -type f \( -name '*Application*' -o -name '*Form*' \) 2>/dev/null || true)"
-        # Filter to only files that exist (cat fails with pipefail if none exist)
         EXISTING_INPUTS=""
         for f in $CLAUDE_INPUTS; do [ -f "$f" ] && EXISTING_INPUTS="$EXISTING_INPUTS $f"; done
         if [ -n "$EXISTING_INPUTS" ]; then
@@ -104,7 +99,6 @@ runs:
           HASH=$(echo "empty" | sha256sum | cut -d' ' -f1)
         fi
 
-        # Read old hash from git tree (not filesystem — preserved files aren't restored yet)
         OLD_HASH=$(git show "origin/${{ inputs.voice_agent_branch }}:.voice-agent/content-hash" 2>/dev/null || echo "none")
 
         mkdir -p .voice-agent
@@ -120,9 +114,8 @@ runs:
       if: steps.mode.outputs.mode == 'incremental'
       shell: bash
       run: |
-        # Always restore Claude's previous work in incremental mode.
+        # Restore previous integration from voice-agent branch.
         # Scaffold runs next and overwrites generated files (voice-config.ts).
-        # When Claude Code runs, it patches on top of restored integration.
         BRANCH="origin/${{ inputs.voice_agent_branch }}"
         RESTORED=0
         for f in $(git diff --name-only origin/main "$BRANCH" -- src/ server/voice-config.ts 2>/dev/null || true); do
@@ -181,13 +174,10 @@ runs:
       env:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
 
-    - name: Restore preserved files
+    - name: Restore ignored files
       if: steps.mode.outputs.mode == 'incremental'
       shell: bash
-      run: |
-        if [ -d /tmp/voice-agent-preserved ]; then
-          cp -r /tmp/voice-agent-preserved/. .
-        fi
+      run: ${{ github.action_path }}/scripts/restore-ignored.sh
 
     - name: Verify build
       shell: bash
@@ -204,11 +194,11 @@ runs:
         git checkout -B "${{ inputs.voice_agent_branch }}"
         git add -A
 
-        # Compare tree hash to skip no-op pushes (e.g. cosmetic-only changes on main)
+        # Compare tree hash to skip no-op pushes
         NEW_TREE=$(git write-tree)
         OLD_TREE=$(git rev-parse "origin/${{ inputs.voice_agent_branch }}^{tree}" 2>/dev/null || echo "none")
         if [[ "$NEW_TREE" == "$OLD_TREE" ]]; then
-          echo "Tree unchanged — skipping push (no voice overlay changes)"
+          echo "Tree unchanged — skipping push"
           echo "skipped=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi

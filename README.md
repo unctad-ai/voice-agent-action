@@ -54,6 +54,20 @@ jobs:
 
 ### 3. Add the `CLAUDE_CODE_OAUTH_TOKEN` secret to your repo
 
+### 4. (Optional) Add `.voice-agent-ignore` to the `voice-agent` branch
+
+If you need files on the `voice-agent` branch that should survive rebuilds (e.g. persona data, custom configs), create a `.voice-agent-ignore` file directly on the `voice-agent` branch:
+
+```
+# Custom persona data uploaded via API
+server/data/persona/
+
+# Custom environment overrides
+server/.env.local
+```
+
+One path per line. Directories end with `/`. Lines starting with `#` are comments. These files are saved before the rebuild and restored after, so they're never lost during force-pushes.
+
 ## Key design decisions
 
 ### No PRs — direct branch deployment
@@ -80,6 +94,22 @@ After building, the action compares the new git tree hash to the existing `voice
 
 `scaffold.sh` reads `peerDependencies` from the npm registry at build time, so the action never needs manual updates when the voice-agent-kit's dependencies change.
 
+### Protecting critical files on `main`
+
+Figma Make occasionally does full-tree syncs that can delete non-Figma files. To protect `.voice-agent.yml` and `.github/workflows/voice-agent-sync.yml` on `main`, add a GitHub branch protection rule with a CODEOWNERS file:
+
+```
+# .github/CODEOWNERS
+/.voice-agent.yml @your-team
+/.github/workflows/voice-agent-sync.yml @your-team
+```
+
+This requires review approval before these files can be modified or deleted.
+
+### Docker cache busting
+
+Both Dockerfiles accept an `NPM_CACHE_BUST` build arg. When deploying a new voice-agent-kit version, set `NPM_CACHE_BUST=$(date +%s)` to force Docker to re-run `npm install` instead of using cached layers with stale `latest` versions.
+
 ### Self-hosted runner
 
 The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Code and Docker builds require more resources. The action avoids `gh` CLI and `yq` — it uses `curl` + `node` one-liners for portability across runner environments.
@@ -97,7 +127,8 @@ The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Cod
 ├── scripts/
 │   ├── scaffold.sh         # Template copying, dep injection, vite patching
 │   ├── verify.sh           # Docker build verification (frontend + backend)
-│   ├── preserve-manual.sh  # Saves manually added files across rebuilds
+│   ├── save-ignored.sh     # Saves .voice-agent-ignore files before rebuild
+│   ├── restore-ignored.sh  # Restores ignored files after rebuild
 │   └── detect-changes.sh   # Classifies main branch changes (services, forms, cosmetic, etc.)
 ├── prompts/
 │   ├── initial-integration.md   # Claude Code prompt for first-time integration
@@ -111,7 +142,7 @@ The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Cod
 
 ```
 main push → read .voice-agent.yml → detect mode → backup tag (incremental)
-  → preserve manual files (incremental) → scaffold templates → content hash check
-  → [Claude Code or restore cached files] → restore preserved files
+  → save ignored files (incremental) → content hash check → restore Claude files (incremental)
+  → scaffold templates → [Claude Code or skip] → restore ignored files
   → Docker build verification → commit → force-push voice-agent branch
 ```
