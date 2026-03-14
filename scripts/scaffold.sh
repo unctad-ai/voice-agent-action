@@ -146,6 +146,7 @@ node -e "
   for (const [name, ver] of Object.entries(peers))
     console.log(name + ' ' + ver);
 " | while IFS=' ' read -r pkg ver; do
+  [[ -z "$pkg" ]] && continue
   add_dep "$pkg" "$ver"
 done
 
