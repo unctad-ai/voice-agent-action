@@ -39,14 +39,14 @@ export SITE_TITLE FAREWELL_MESSAGE="${FAREWELL}" SYSTEM_PROMPT_INTRO="${SYSTEM_I
 export GREETING_MESSAGE="${GREETING}" AVATAR_URL="${AVATAR}" DESCRIPTION="${DESCRIPTION:-}"
 export LANGUAGE="${LANGUAGE:-en}"
 
-node -e "
+node <<'SCAFFOLD_EOF'
   const fs = require('fs');
   const T = process.env.TEMPLATES;
   const sub = (tpl, subs) => {
     let t = fs.readFileSync(tpl, 'utf8');
     for (const [k, v] of Object.entries(subs)) {
       // Escape single quotes — placeholders land inside single-quoted TS strings
-      const escaped = v.replace(/'/g, "\\\\'");
+      const escaped = v.replace(/'/g, "\\'");
       t = t.split(k).join(escaped);
     }
     return t;
@@ -69,7 +69,7 @@ node -e "
   fs.mkdirSync('src', { recursive: true });
   fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
   console.log('  Created src/voice-config.ts');
-"
+SCAFFOLD_EOF
 
 # Docker / deploy files
 cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
