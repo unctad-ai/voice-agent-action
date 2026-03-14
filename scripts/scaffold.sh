@@ -44,7 +44,11 @@ node -e "
   const T = process.env.TEMPLATES;
   const sub = (tpl, subs) => {
     let t = fs.readFileSync(tpl, 'utf8');
-    for (const [k, v] of Object.entries(subs)) t = t.split(k).join(v);
+    for (const [k, v] of Object.entries(subs)) {
+      // Escape single quotes — placeholders land inside single-quoted TS strings
+      const escaped = v.replace(/'/g, "\\\\'");
+      t = t.split(k).join(escaped);
+    }
     return t;
   };
 
