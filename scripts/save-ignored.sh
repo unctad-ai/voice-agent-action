@@ -36,12 +36,13 @@ while IFS= read -r line; do
   # Check if it's a directory (ends with /)
   if [[ "$line" == */ ]]; then
     # Save all files under this directory
-    for f in $(git ls-tree -r --name-only "origin/$BRANCH" -- "$line" 2>/dev/null || true); do
+    while IFS= read -r f; do
+      [[ -z "$f" ]] && continue
       mkdir -p "$SAVE_DIR/$(dirname "$f")"
       git show "origin/$BRANCH:$f" > "$SAVE_DIR/$f"
       echo "  Saved: $f"
       SAVED=$((SAVED + 1))
-    done
+    done < <(git ls-tree -r --name-only "origin/$BRANCH" -- "$line" 2>/dev/null || true)
   else
     # Save single file
     if git show "origin/$BRANCH:$line" &>/dev/null; then

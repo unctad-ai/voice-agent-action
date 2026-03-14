@@ -41,7 +41,7 @@ else
 
   # Build frontend
   echo "Building frontend..."
-  if docker build -f Dockerfile.frontend -t voice-agent-frontend-test . 2>&1 | tee /tmp/docker-frontend.log | tail -20; then
+  if docker build -f Dockerfile.frontend -t voice-agent-frontend-test . 2>&1 | tee /tmp/docker-frontend.log; then
     echo "  Frontend: OK"
   else
     echo "::error::Frontend Docker build failed"
@@ -53,7 +53,7 @@ else
 
   # Build backend (context is server/ to match Dockerfile expectations)
   echo "Building backend..."
-  if docker build -f server/Dockerfile -t voice-agent-backend-test server/ 2>&1 | tee /tmp/docker-backend.log | tail -20; then
+  if docker build -f server/Dockerfile -t voice-agent-backend-test server/ 2>&1 | tee /tmp/docker-backend.log; then
     echo "  Backend: OK"
   else
     echo "::error::Backend Docker build failed"
