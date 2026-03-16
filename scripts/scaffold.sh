@@ -81,6 +81,9 @@ cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
 cp "$TEMPLATES/.dockerignore" .dockerignore
 cp "$TEMPLATES/.gitignore" .gitignore
 
+# Remove legacy two-container artifacts (nginx frontend was merged into Express)
+rm -f Dockerfile.frontend nginx.conf server/Dockerfile server/.dockerignore
+
 # CLAUDE.md with copilot name substitution
 sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/CLAUDE.md.tmpl" > CLAUDE.md
 
