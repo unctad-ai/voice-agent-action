@@ -199,16 +199,6 @@ runs:
       run: |
         git checkout -B "${{ inputs.voice_agent_branch }}"
         git add -A
-
-        # Compare tree hash to skip no-op pushes
-        NEW_TREE=$(git write-tree)
-        OLD_TREE=$(git rev-parse "origin/${{ inputs.voice_agent_branch }}^{tree}" 2>/dev/null || echo "none")
-        if [[ "$NEW_TREE" == "$OLD_TREE" ]]; then
-          echo "Tree unchanged — skipping push"
-          echo "skipped=true" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
         git commit -m "chore: rebuild voice-agent from main $(git rev-parse --short main)"
         git push --force origin "${{ inputs.voice_agent_branch }}"
         echo "skipped=false" >> "$GITHUB_OUTPUT"
