@@ -185,13 +185,7 @@ runs:
 
     - name: Clean build artifacts before commit
       shell: bash
-      run: |
-        rm -rf node_modules build dist server/node_modules
-        # Write timestamp so Coolify's Docker build busts npm cache on every deploy.
-        # NPM_CACHE_BUST is a build arg in both Dockerfiles — changing it forces
-        # Docker to re-run npm install instead of using cached layers with stale
-        # "latest" package versions.
-        echo "NPM_CACHE_BUST=$(date +%s)" >> .env
+      run: rm -rf node_modules build dist server/node_modules
 
     - name: Update voice-agent branch
       id: push
