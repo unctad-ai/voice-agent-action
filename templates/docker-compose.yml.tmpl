@@ -1,8 +1,8 @@
 services:
-  frontend:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile
       args:
         - VITE_BACKEND_URL=
         - VITE_API_KEY=${CLIENT_API_KEY:-}
@@ -10,19 +10,8 @@ services:
         - NPM_CACHE_BUST=${NPM_CACHE_BUST:-0}
     expose:
       - "80"
-    depends_on:
-      - backend
-  backend:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-      args:
-        - NPM_CACHE_BUST=${NPM_CACHE_BUST:-0}
-    expose:
-      - "3001"
     environment:
-      - PORT=3001
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - PORT=80
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - CLIENT_API_KEY=${CLIENT_API_KEY:-}
       - QWEN3_TTS_URL=${QWEN3_TTS_URL:-}
