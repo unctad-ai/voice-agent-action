@@ -6,9 +6,9 @@ Reusable GitHub Action that rebuilds a `voice-agent` branch from a Figma Make pr
 
 On every push to `main`, this action:
 
-1. **Scaffolds** server code, Docker configs, nginx, and frontend dependencies from deterministic templates
+1. **Scaffolds** server code, Docker configs, and frontend dependencies from deterministic templates
 2. **Runs Claude Code** (claude-opus-4-6) to generate `voice-config.ts`, wrap `App.tsx`, and integrate form fields
-3. **Verifies** both frontend and backend Docker builds pass
+3. **Verifies** the Docker build passes
 4. **Force-pushes** to the `voice-agent` branch — Coolify picks it up automatically
 
 No PRs are created. Figma Make owns `main`; merging voice-agent changes back into `main` is architecturally wrong since Figma Make regenerates `main` on every design change. The `voice-agent` branch is a derived artifact rebuilt from scratch each time.
@@ -119,14 +119,13 @@ The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Cod
 ```
 ├── action.yml              # Composite action definition
 ├── templates/              # Deterministic scaffolding
-│   ├── server/             # Express server (Dockerfile, index.ts, package.json)
-│   ├── Dockerfile.frontend # Multi-stage Vite + nginx build
-│   ├── docker-compose.yml  # Frontend + backend services
-│   ├── nginx.conf          # Reverse proxy config
+│   ├── server/             # Express server (index.ts, package.json)
+│   ├── Dockerfile          # Multi-stage Vite + Express build (single container)
+│   ├── docker-compose.yml  # Single app service
 │   └── CLAUDE.md.tmpl      # Claude Code context for the target repo
 ├── scripts/
 │   ├── scaffold.sh         # Template copying, dep injection, vite patching
-│   ├── verify.sh           # Docker build verification (frontend + backend)
+│   ├── verify.sh           # Docker build verification
 │   ├── save-ignored.sh     # Saves .voice-agent-ignore files before rebuild
 │   ├── restore-ignored.sh  # Restores ignored files after rebuild
 │   └── detect-changes.sh   # Classifies main branch changes (services, forms, cosmetic, etc.)
