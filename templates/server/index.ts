@@ -47,7 +47,7 @@ attachVoicePipeline(server, {
 
 // Serve Vite build output
 app.use(express.static(path.join(import.meta.dirname, 'build')));
-app.get('*', (_req, res) => {
+app.get('/{*path}', (_req, res) => {
   res.sendFile(path.join(import.meta.dirname, 'build', 'index.html'));
 });
 
