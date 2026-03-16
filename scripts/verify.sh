@@ -39,26 +39,13 @@ if ! command -v docker &>/dev/null; then
 else
   echo "=== Verify: Docker build ==="
 
-  # Build frontend
-  echo "Building frontend..."
-  if docker build -f Dockerfile.frontend -t voice-agent-frontend-test . 2>&1 | tee /tmp/docker-frontend.log; then
-    echo "  Frontend: OK"
+  echo "Building app..."
+  if docker build -f Dockerfile -t voice-agent-test . 2>&1 | tee /tmp/docker-build.log; then
+    echo "  App: OK"
   else
-    echo "::error::Frontend Docker build failed"
-    echo "::group::Full frontend build log"
-    cat /tmp/docker-frontend.log
-    echo "::endgroup::"
-    FAILED=1
-  fi
-
-  # Build backend (context is server/ to match Dockerfile expectations)
-  echo "Building backend..."
-  if docker build -f server/Dockerfile -t voice-agent-backend-test server/ 2>&1 | tee /tmp/docker-backend.log; then
-    echo "  Backend: OK"
-  else
-    echo "::error::Backend Docker build failed"
-    echo "::group::Full backend build log"
-    cat /tmp/docker-backend.log
+    echo "::error::Docker build failed"
+    echo "::group::Full build log"
+    cat /tmp/docker-build.log
     echo "::endgroup::"
     FAILED=1
   fi
