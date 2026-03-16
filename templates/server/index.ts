@@ -1,15 +1,18 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
+import path from 'node:path';
+import compression from 'compression';
 import { createServer } from 'node:http';
 import { attachVoicePipeline } from '@unctad-ai/voice-agent-server';
 import { siteConfig } from './voice-config.js';
 
 const app = express();
-const port = parseInt(process.env.PORT || '3001');
+const port = parseInt(process.env.PORT || '80');
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
+app.use(compression());
 
 const personaDir = process.env.PERSONA_DIR || './data/persona';
 if (!fs.existsSync(personaDir)) fs.mkdirSync(personaDir, { recursive: true });
@@ -41,5 +44,11 @@ attachVoicePipeline(server, {
   pocketTtsUrl: process.env.POCKET_TTS_URL,
   personaDir,
 }, app);
+
+// Serve Vite build output
+app.use(express.static(path.join(import.meta.dirname, 'build')));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(import.meta.dirname, 'build', 'index.html'));
+});
 
 server.listen(port, () => console.log(`Server running on port ${port} (WebSocket at /api/voice)`));
