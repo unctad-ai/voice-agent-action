@@ -17,10 +17,8 @@ echo "=== Scaffold: copying templates ==="
 
 # Server directory
 mkdir -p server
-cp "$TEMPLATES/server/Dockerfile" server/Dockerfile
 cp "$TEMPLATES/server/index.ts" server/index.ts
 cp "$TEMPLATES/server/tsconfig.json" server/tsconfig.json
-cp "$TEMPLATES/server/.dockerignore" server/.dockerignore
 
 # Server package.json and .env.example with substitutions
 COPILOT="${COPILOT_NAME:-Assistant}"
@@ -78,9 +76,8 @@ node <<'SCAFFOLD_EOF'
 SCAFFOLD_EOF
 
 # Docker / deploy files
-cp "$TEMPLATES/Dockerfile.frontend" Dockerfile.frontend
+cp "$TEMPLATES/Dockerfile" Dockerfile
 cp "$TEMPLATES/docker-compose.yml.tmpl" docker-compose.yml
-cp "$TEMPLATES/nginx.conf" nginx.conf
 cp "$TEMPLATES/.dockerignore" .dockerignore
 cp "$TEMPLATES/.gitignore" .gitignore
 
