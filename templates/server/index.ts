@@ -39,7 +39,7 @@ const server = createServer(app);
 attachVoicePipeline(server, {
   config: siteConfig,
   groqApiKey: process.env.GROQ_API_KEY!,
-  kyutaiSttUrl: process.env.KYUTAI_STT_URL,
+  sttUrl: process.env.STT_URL,
   qwen3TtsUrl: process.env.QWEN3_TTS_URL,
   pocketTtsUrl: process.env.POCKET_TTS_URL,
   personaDir,
