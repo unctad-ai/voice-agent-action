@@ -197,10 +197,45 @@ When a parent component (e.g. `RegisterCompanyApplication`) wraps a child form (
 - section = logical grouping (e.g. `project`, `director`, `applicant`)
 - field = camelCase field name
 
-**Labels:** Domain-prefixed to avoid ambiguity:
+**Labels:** Must match the UI text the user sees exactly. Copy from JSX headings/labels verbatim:
+- "Upload signed Capital Statement" (not "Signed statement of nominal capital")
 - "Director first name" (not "First name")
 - "Project county" (not "County")
-- "Applicant email" (not "Email")
+
+**`ready:` gates — CRITICAL for progressive forms:**
+
+When fields only appear after a user action (upload completes, save clicked, etc.), the step MUST have a `ready:` condition. Without it, `getFormSchema` exposes invisible fields, causing the LLM to skip required navigation steps.
+
+Two-step split pattern for upload-gated text fields:
+```tsx
+// Upload field — always ready when section is open
+{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm,
+  gatedAction: 'pin-reg.addDirector',
+  fields: [{ id: 'director.passportUpload', label: 'Upload passport copy', type: 'upload', required: true, bind: [...] }] },
+// Text fields — only ready after upload completes
+{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm && hasUploadedFile,
+  fields: [{ id: 'director.firstName', ... }, ...] },
+```
+
+Same step name = fields merge into one schema section. Text fields appear only when `ready` is true.
+
+For save-gated sections (e.g., project fields appear after director is saved):
+```tsx
+{ step: 'Project Information', visible: activeTab === 'form', ready: showProjectSection, fields: [...] }
+```
+
+How to identify: look for `{condition && (<div>...fields...</div>)}` in JSX. The condition variable is your `ready:` gate.
+
+**Upload-only tabs must be registered.** If a tab (Documents, Attachments) has only upload fields, register them all:
+```tsx
+{ step: 'Required Documents', visible: activeTab === 'documents',
+  fields: [
+    { id: 'docs.passport', label: 'Passport photo for each shareholder', type: 'upload', required: true, bind: [file ? 'uploaded' : '', () => {}] },
+    // ... every upload field on this tab
+  ] }
+```
+
+Without this, `getFormSchema` returns "no fields visible" on that tab and the LLM loops.
 
 **Field types — trust the RENDERED element, not assumptions:**
 
