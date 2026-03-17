@@ -275,6 +275,17 @@ Walk the JSX and identify each logical section (grouped by headings, `<div>` wra
 | **`ready:`** | Is it behind a condition? e.g. `showSection`, `hasUploaded`, `directorsCount > 0` |
 | **`gatedAction:`** | Does it need a UI action to reveal? e.g. `'pin-reg.addDirector'` |
 
+**Produce a section inventory** before moving to Step 4:
+```
+| Section | Tab | visible | ready | gatedAction |
+|---------|-----|---------|-------|-------------|
+| Director Details | form | activeTab === 'form' | showDirectorForm | pin-reg.addDirector |
+| Director Address | form | activeTab === 'form' | showDirectorForm | pin-reg.addDirector |
+| Project Info | form | activeTab === 'form' | showProjectSection | — |
+| Required Documents | documents | activeTab === 'documents' | — | — |
+```
+This inventory drives Steps 4–7.
+
 **`ready:` gates — CRITICAL for progressive forms:**
 When fields only appear after a user action (upload completes, save clicked, etc.), the step MUST have a `ready:` condition. Without it, `getFormSchema` exposes invisible fields, causing the LLM to skip required navigation steps.
 
@@ -384,7 +395,7 @@ For EVERY interactive button in the component that is not a form field, add `use
 - Toggle sections open/closed
 - Query/search operations
 
-Handler MUST return a descriptive string:
+Handler MUST return a descriptive string. Wrap in `useCallback` with ALL referenced variables in the dependency array:
 ```typescript
 useRegisterUIAction(
   'prefix.actionName',
@@ -392,10 +403,11 @@ useRegisterUIAction(
   useCallback(() => {
     doSomething();
     return `Result: what happened. Current state: ${items.length} items.`;
-  }, [items.length]),
+  }, [items.length, doSomething]),  // include every variable referenced inside
   { category: 'prefix' }
 );
 ```
+**Common dep array mistake:** omitting state variables or callbacks from the array causes stale closures — the handler runs with old values.
 
 ---
 
@@ -421,7 +433,39 @@ Guard should check real preconditions: required tabs visited, required uploads p
 
 ---
 
-#### Step 10: Verify
+#### Step 10: Adversarial review — simulate the LLM
+
+Pretend you are the voice assistant LLM at runtime. Walk through the form tab by tab and check for failure modes discovered in live testing.
+
+**For each tab, ask:**
+
+1. **"What does getFormSchema return right now?"** List the sections and fields that would appear based on your `visible:` and `ready:` conditions with the component in its initial state (nothing filled, no actions taken).
+   - If you see fields the user CANNOT see on screen → missing `ready:` gate
+   - If you see 0 fields on a tab with upload areas → missing upload-only tab registration (Step 7)
+
+2. **"After I fill these fields, what happens?"** Simulate fillFormFields → auto getFormSchema refresh.
+   - If new sections from a DIFFERENT tab appear → missing `ready:` gate tied to a save/navigate action
+   - If 15+ fields appear at once in one section → step is too large, split it
+
+3. **"After all fields are filled, what action do I take?"** Check UI_ACTIONS.
+   - If no save/tab-switch action exists to advance → missing `useRegisterUIAction`
+   - If the only path forward requires a button click not registered as an action → user gets stuck
+
+4. **"Can I submit?"** Try calling the submit action.
+   - If no submit action is registered → add `useRegisterSubmitAction` (Step 9)
+   - If guard returns an error that the LLM cannot resolve via tools → guard is too strict or missing guidance
+
+5. **"If I say the field names out loud, can the user find them?"**
+   - If a label says "Signed statement of nominal capital" but the UI shows "Upload signed Capital Statement" → label mismatch
+
+**Common failures this step catches:**
+- Upload field + text fields in the same step → LLM offers "manual entry" for gated fields
+- Project section visible before director save → LLM skips the Save button
+- Documents tab with no registered fields → LLM loops on submit guard
+- Submit action not registered → LLM fabricates action ID, gets "not found"
+- 30 fields in one flat step → LLM dumps everything in one sentence
+
+#### Step 11: Verify
 
 Before moving to the next component:
 
@@ -430,6 +474,7 @@ Before moving to the next component:
 - [ ] All `gatedAction` IDs match a registered `useRegisterUIAction`
 - [ ] All `visible:` / `ready:` conditions use real variables from the component
 - [ ] No fabricated option values — all extracted from source
+- [ ] Adversarial review (Step 10) passed — no invisible fields, no missing actions
 - [ ] Build passes: `npm run build` (or `npx vite build`)
 
 ## 5. Validation
