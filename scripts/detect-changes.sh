@@ -6,8 +6,13 @@ set -euo pipefail
 
 CHANGES=""
 
-# Get changed files between previous and current main
-CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || git ls-files)
+# Get files changed on main since the last merge into voice-agent
+MERGE_BASE=$(git merge-base HEAD main 2>/dev/null || echo "")
+if [[ -n "$MERGE_BASE" ]]; then
+  CHANGED_FILES=$(git diff --name-only "$MERGE_BASE"..main 2>/dev/null || git ls-files)
+else
+  CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || git ls-files)
+fi
 
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue

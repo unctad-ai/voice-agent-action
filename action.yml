@@ -101,8 +101,8 @@ runs:
 
         OLD_HASH=$(git show "origin/${{ inputs.voice_agent_branch }}:.voice-agent/content-hash" 2>/dev/null || echo "none")
 
-        mkdir -p .voice-agent
-        echo "$HASH" > .voice-agent/content-hash
+        # Save hash as output — written to file after merge step (checkout destroys working tree)
+        echo "hash=${HASH}" >> "$GITHUB_OUTPUT"
         if [[ "$HASH" == "$OLD_HASH" && "${{ steps.mode.outputs.mode }}" == "incremental" ]]; then
           echo "skip=true" >> "$GITHUB_OUTPUT"
           echo "Content unchanged — skipping Claude Code"
@@ -130,6 +130,12 @@ runs:
           git commit --no-edit || true
           echo "strategy=merge-theirs" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Write content hash
+      shell: bash
+      run: |
+        mkdir -p .voice-agent
+        echo "${{ steps.content_hash.outputs.hash }}" > .voice-agent/content-hash
 
     - name: Scaffold from templates
       shell: bash
