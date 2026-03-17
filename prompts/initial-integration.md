@@ -233,7 +233,9 @@ Read the component file and catalog its state.
 - Validation error state
 - Uncontrolled inputs (no React state = no bind target)
 
-**Choose a prefix** for this component's IDs: a short kebab-case name (e.g. `pin-reg`, `evaluate-investment`, `phyto`).
+**Register ALL controlled fields** — do not simplify or omit fields that have React state. If 9 bank checkboxes each have their own `useState`, register all 9. The LLM needs the full schema to fill the form correctly. Never make judgment calls about which fields are "important enough" to register.
+
+**Choose a prefix** for this component's IDs: a short kebab-case name (e.g. `pin-reg`, `evaluate-investment`, `phyto`). Use the same string for the `category` parameter in all hook registrations — prefix and category must always match.
 
 **Determine the state binding pattern** used by this component:
 
