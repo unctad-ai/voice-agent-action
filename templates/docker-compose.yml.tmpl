@@ -19,6 +19,11 @@ services:
       - POCKET_TTS_URL=${POCKET_TTS_URL:-}
     volumes:
       - persona-data:/app/data/persona
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
 volumes:
   persona-data:
