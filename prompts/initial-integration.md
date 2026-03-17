@@ -509,7 +509,11 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
    - If handler returns `void`/`undefined` → **FIX:** add a `return 'Result...'` statement (Step 8)
    - If called with object syntax `({id, description, handler})` instead of positional `(id, description, handler, options)` → **FIX:** convert to positional (Step 8)
 
-**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 9 checks pass. If after 3 rounds of fixes any check still fails, flag the component as `PARTIAL` and move on.
+10. **"Do both voice-config files have all required SiteConfig fields?"** Check `src/voice-config.ts` and `server/voice-config.ts` against the required fields list in Section 2.4.
+   - If any field is missing (colors, categories, synonyms, systemPromptIntro, etc.) → **FIX:** add it (Section 2.4)
+   - Missing fields cause runtime crashes on property access
+
+**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 10 checks pass. If after 3 rounds of fixes any check still fails, flag the component as `PARTIAL` and move on.
 
 **Quick reference — failure → fix:**
 | Failure | Root cause | Fix step |

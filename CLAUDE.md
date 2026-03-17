@@ -103,7 +103,7 @@ useRegisterSubmitAction('prefix', {
 
 Tab names must match the component's type/union exactly. If the type is `'guide' | 'form' | 'documents' | 'send'`, those exact strings must appear in the registration.
 
-### 6. What NOT to Do
+### Anti-Patterns (What NOT to Do)
 
 - **Don't register 15+ fields in a single step** — the LLM asks for "a few at a time" (2-sentence limit), so large steps make it dump everything
 - **Don't put text fields before their gating upload** — if passport OCR auto-fills name/DOB, the upload must come first

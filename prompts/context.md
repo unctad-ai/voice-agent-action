@@ -13,7 +13,7 @@ The voice-agent-kit system prompt governs how the LLM assistant behaves at runti
 | **FORMS 5**: Tab switches need tab param | LLM navigates tabs by calling performUIAction | `useRegisterTabSwitchAction` with exact tab names matching the component's tab type |
 | **FORMS 6**: Handle uploads before text fields | Upload may auto-fill text fields (OCR, parsing) | Split into two steps with same name: upload-only step (ready when section is visible), text fields step with `ready: sectionVisible && hasUploadedFile`. Do NOT put both in one step — text fields must not appear in schema until upload completes |
 | **FORMS 7**: Never say form is complete without verifying | LLM calls getFormSchema to confirm all required fields filled | Mark truly required fields with `required: true` — the LLM uses this to judge completeness |
-| **PAGE TYPES** | /service/:id = info, /dashboard/* = forms | Only wire form hooks on /dashboard/* components. Service pages are read-only |
+| **PAGE TYPES** (separate rule, not part of FORMS) | /service/:id = info, /dashboard/* = forms | Only wire form hooks on /dashboard/* components. Service pages are read-only |
 
 ## Key Constraints
 
