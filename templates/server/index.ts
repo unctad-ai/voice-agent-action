@@ -43,6 +43,7 @@ attachVoicePipeline(server, {
   qwen3TtsUrl: process.env.QWEN3_TTS_URL,
   pocketTtsUrl: process.env.POCKET_TTS_URL,
   personaDir,
+  adminPassword: process.env.ADMIN_PASSWORD,
 }, app);
 
 // Serve Vite build output
