@@ -110,6 +110,8 @@ If the project uses a single root `<App>` component with `RouterProvider` inside
 
 Do NOT restructure existing routes or layout — only wrap them.
 
+**CRITICAL — Router context:** `GlassCopilotPanel` uses `useNavigate()` internally, which requires Router context. With `RouterProvider`, `VoiceLayer` must be INSIDE the router tree (either as a child of the root layout route, or wrapped around `RouterProvider`). If placed as a sibling outside the router, it crashes. Verify after wrapping: trace from `GlassCopilotPanel` up to the nearest Router/RouterProvider — there must be one in the ancestor chain.
+
 ## 2. Enhance the scaffolded `src/voice-config.ts`
 
 > The scaffold has already created this file with a placeholder service and defaults from `.voice-agent.yml`. Replace the placeholder service array with real services extracted from the codebase. Keep the existing config fields (copilotName, colors, farewellMessage, etc.) — only update services, categories, categoryMap, synonyms, routeMap, and getServiceFormRoute.
@@ -151,6 +153,24 @@ Generate `src/voice-config.ts` with:
 
 Export as `siteConfig` with the `SiteConfig` type from `@unctad-ai/voice-agent-core`.
 
+**CRITICAL — all required SiteConfig fields must be present.** Missing fields cause runtime crashes (`colors.primary`, `buildSynonymMap(undefined)`, etc.). Required fields:
+```typescript
+{
+  copilotName: string,
+  siteTitle: string,
+  systemPromptIntro: string,
+  services: Service[],
+  categories: string[],
+  categoryMap: Record<string, string>,
+  routeMap: Record<string, string>,
+  synonyms: Record<string, string[]>,
+  colors: { primary: string, processing: string, speaking: string, glow: string },
+  getServiceFormRoute: (id: string) => string | null,
+}
+```
+
+**Import services from the project's canonical data source** (e.g., `data/services.tsx` or `data/services.ts`) — do NOT hand-copy a sparse subset. The LLM answers from `getServiceDetails` tool results; sparse data causes hallucination.
+
 ## 3. Enhance the scaffolded `server/voice-config.ts`
 
 > Same as above — the scaffold created a bootable default. Replace the placeholder service with real services. Additionally add extraServerTools and coreIds based on the project's domain.
@@ -159,6 +179,7 @@ Mirror the client config structure. Additionally:
 - Add `extraServerTools` if the project has domain-specific tool opportunities (e.g. `recommendServices`, `compareServices`, `searchServices`)
 - Use `coreIds` to highlight frequently-accessed services
 - All service IDs MUST match actual IDs from the services source identified in Step 2.1
+- All required SiteConfig fields from section 2.4 apply here too
 
 Export as `siteConfig`.
 
@@ -297,6 +318,20 @@ How to identify: look for `{condition && (<div>...fields...</div>)}` in JSX. The
 
 #### Step 4: Map fields per section
 
+Assemble the `useProgressiveFields` call. Each step MUST be a `ProgressiveStepConfig` object — **never pass a flat field array:**
+```tsx
+// CORRECT — array of step objects:
+useProgressiveFields('prefix', [
+  { step: 'Section Name', visible: activeTab === 'form', ready: condition, fields: [...] },
+  { step: 'Other Section', visible: activeTab === 'form', fields: [...] },
+]);
+
+// WRONG — flat field array (causes "p.fields is not iterable" crash):
+useProgressiveFields('prefix', [
+  { id: 'field1', label: '...', type: 'text', bind: [...] },
+]);
+```
+
 For each field in each section, produce a field definition:
 
 | Property | How to determine |
@@ -395,12 +430,13 @@ For EVERY interactive button in the component that is not a form field, add `use
 - Toggle sections open/closed
 - Query/search operations
 
-Handler MUST return a descriptive string. Wrap in `useCallback` with ALL referenced variables in the dependency array:
+**API is positional args** — NOT an object. A handler returning `void` causes a false "action not found" error:
 ```typescript
+// CORRECT — positional args, returns string:
 useRegisterUIAction(
-  'prefix.actionName',
-  'Human description of what this does',
-  useCallback(() => {
+  'prefix.actionName',                              // id
+  'Human description of what this does',             // description
+  useCallback(() => {                                // handler
     doSomething();
     return `Result: what happened. Current state: ${items.length} items.`;
   }, [items.length, doSomething]),  // include every variable referenced inside
@@ -465,7 +501,15 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
 7. **"Does every `gatedAction` ID match a registered action?"** Cross-check all `gatedAction:` strings from Steps 5-6 against `useRegisterUIAction` IDs from Step 8.
    - If an ID has no matching registration → **FIX:** register the action (Step 8), or fix the typo in the gatedAction string
 
-**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 7 checks pass. If after 3 rounds of fixes any check still fails, flag the component as `PARTIAL` and move on.
+8. **"Is useProgressiveFields called with step objects, not flat fields?"** Check the call passes `[{step, visible, fields}, ...]` not `[{id, label, type, bind}, ...]`.
+   - If flat field arrays are passed → **FIX:** wrap in `{ step: 'Name', visible: condition, fields: [...] }` (Step 4)
+   - Flat arrays cause "p.fields is not iterable" runtime crash
+
+9. **"Do all useRegisterUIAction calls use positional args and return strings?"** Check every handler.
+   - If handler returns `void`/`undefined` → **FIX:** add a `return 'Result...'` statement (Step 8)
+   - If called with object syntax `({id, description, handler})` instead of positional `(id, description, handler, options)` → **FIX:** convert to positional (Step 8)
+
+**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 9 checks pass. If after 3 rounds of fixes any check still fails, flag the component as `PARTIAL` and move on.
 
 **Quick reference — failure → fix:**
 | Failure | Root cause | Fix step |
@@ -479,6 +523,9 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
 | LLM offers manual entry | Upload + text in same step | Step 5 |
 | Consecutive fills overwrite fields | Missing `prev =>` in object state bind | Step 1 |
 | Gated section cannot be unlocked | gatedAction ID doesn't match registered action | Step 8 |
+| "p.fields is not iterable" crash | Flat field array instead of step objects | Step 4 |
+| "Action not found" false error | Handler returns void or wrong call signature | Step 8 |
+| Runtime crash on config access | Missing required SiteConfig fields | Section 2.4 |
 
 #### Step 11: Verify
 
