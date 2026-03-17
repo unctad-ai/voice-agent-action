@@ -166,8 +166,11 @@ runs:
       shell: bash
       run: |
         PROMPT_FILE="${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md"
+        CONTEXT_FILE="${{ github.action_path }}/prompts/context.md"
 
         {
+          cat "$CONTEXT_FILE"
+          echo ""
           cat "$PROMPT_FILE"
           echo ""
           echo "The project config is:"
