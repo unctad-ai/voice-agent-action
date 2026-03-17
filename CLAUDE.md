@@ -105,7 +105,7 @@ Tab names must match the component's type/union exactly. If the type is `'guide'
 
 ### 6. What NOT to Do
 
-- **Don't register 30+ fields in a single step** — the LLM asks for "a few at a time" (2-sentence limit), so a flat 30-field step makes it dump everything
+- **Don't register 15+ fields in a single step** — the LLM asks for "a few at a time" (2-sentence limit), so large steps make it dump everything
 - **Don't put text fields before their gating upload** — if passport OCR auto-fills name/DOB, the upload must come first
 - **Don't offer manual entry when upload is the only path** — if text fields are gated behind `ready: hasUploadedFile`, the upload is mandatory, not optional
 - **Don't use labels that differ from UI text** — the LLM speaks them verbatim to the user

@@ -458,7 +458,14 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
 5. **"If I say the field names out loud, can the user find them?"**
    - If a label differs from what the UI shows → **FIX:** replace the label with the exact text from the JSX heading (Step 4)
 
-**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 5 checks pass.
+6. **"Do all bind setters use `prev =>` for object state?"** Check every bind that updates object state (Pattern B/C from Step 1).
+   - If any bind uses `setFormData({...formData, field: v})` instead of `setFormData(prev => ({...prev, field: v}))` → **FIX:** rewrite with `prev =>` pattern (Step 1)
+   - Without this, consecutive fillFormFields calls overwrite each other (stale closure)
+
+7. **"Does every `gatedAction` ID match a registered action?"** Cross-check all `gatedAction:` strings from Steps 5-6 against `useRegisterUIAction` IDs from Step 8.
+   - If an ID has no matching registration → **FIX:** register the action (Step 8), or fix the typo in the gatedAction string
+
+**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 7 checks pass. If after 3 rounds of fixes any check still fails, flag the component as `PARTIAL` and move on.
 
 **Quick reference — failure → fix:**
 | Failure | Root cause | Fix step |
@@ -470,6 +477,8 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
 | User cannot find field | Label doesn't match UI text | Step 4 |
 | LLM dumps all fields | Step too large (15+ fields) | Step 3/4 |
 | LLM offers manual entry | Upload + text in same step | Step 5 |
+| Consecutive fills overwrite fields | Missing `prev =>` in object state bind | Step 1 |
+| Gated section cannot be unlocked | gatedAction ID doesn't match registered action | Step 8 |
 
 #### Step 11: Verify
 
