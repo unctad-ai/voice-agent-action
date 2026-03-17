@@ -42,6 +42,9 @@ attachVoicePipeline(server, {
   sttUrl: process.env.STT_URL,
   qwen3TtsUrl: process.env.QWEN3_TTS_URL,
   pocketTtsUrl: process.env.POCKET_TTS_URL,
+  luxTtsUrl: process.env.LUXTTS_URL,
+  vllmOmniTtsUrl: process.env.VLLM_OMNI_TTS_URL,
+  sttHallucinationFilter: process.env.STT_HALLUCINATION_FILTER !== '0',
   personaDir,
   adminPassword: process.env.ADMIN_PASSWORD,
 }, app);

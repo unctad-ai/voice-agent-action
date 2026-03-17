@@ -17,6 +17,8 @@ services:
       - QWEN3_TTS_URL=${QWEN3_TTS_URL:-}
       - STT_URL=${STT_URL:-}
       - POCKET_TTS_URL=${POCKET_TTS_URL:-}
+      - LUXTTS_URL=${LUXTTS_URL:-}
+      - VLLM_OMNI_TTS_URL=${VLLM_OMNI_TTS_URL:-}
     volumes:
       - persona-data:/app/data/persona
     logging:
