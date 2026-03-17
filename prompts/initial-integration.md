@@ -164,6 +164,10 @@ Export as `siteConfig`.
 
 ## 4. Integrate Form Fields
 
+**Study the golden reference first:** Before touching any form component, read `golden-reference/before.tsx` and `golden-reference/after.tsx` in this action's directory. The after.tsx demonstrates every pattern correctly. Use it as your template.
+
+**API usage:** Use `useProgressiveFields` exclusively (from `@unctad-ai/voice-agent-registries`). NEVER use individual `useRegisterFormField` calls.
+
 ### 4.1 Discover form components
 
 Search broadly — do NOT rely only on filename patterns:
@@ -176,93 +180,41 @@ Search broadly — do NOT rely only on filename patterns:
 3. **Exclude:** Components that are purely display/read-only (detail views, dashboards, search results)
 4. **Skip non-compiling components:** If a component has broken imports (importing from files/directories that don't exist), flag it in output and skip: `SKIPPED: ComponentName.tsx (broken import: ./tabs/SomeTab does not exist)`
 
-### 4.2 Handle nested form components
+**Nested form components:** When a parent component (e.g. `RegisterCompanyApplication`) wraps a child form (e.g. `RegisterCompanyForm`), treat them as separate components in the algorithm below. Register **guide/wizard fields** (step selection, payment, consent) in the **parent** and **form data fields** in the **child**. Do NOT duplicate field registrations across parent and child.
 
-When a parent component (e.g. `RegisterCompanyApplication`) wraps a child form (e.g. `RegisterCompanyForm`):
-- Register **guide/wizard fields** (step selection, payment, consent) in the **parent**
-- Register **form data fields** in the **child**
-- Do NOT duplicate field registrations across parent and child
-- Register `useRegisterTabSwitchAction` in whichever component owns the tab state
+### 4.2 Per-Component Algorithm
 
-### 4.3 Rules (MUST follow exactly)
+Repeat these steps for EACH form component found in 4.1.
 
-**Study the golden reference first:** Read `golden-reference/before.tsx` and `golden-reference/after.tsx` in this action's directory. The after.tsx demonstrates every pattern correctly.
+---
 
-**API usage:**
-- Use `useProgressiveFields` exclusively (from `@unctad-ai/voice-agent-registries`)
-- NEVER use individual `useRegisterFormField` calls
+#### Step 1: Read and inventory
 
-**ID convention:** `{prefix}.{section}.{field}`
-- prefix = short component name (e.g. `pin-reg`, `evaluate-investment`, `phyto`)
-- section = logical grouping (e.g. `project`, `director`, `applicant`)
-- field = camelCase field name
+Read the component file and catalog its state.
 
-**Labels:** Must match the UI text the user sees exactly. Copy from JSX headings/labels verbatim:
-- "Upload signed Capital Statement" (not "Signed statement of nominal capital")
-- "Director first name" (not "First name")
-- "Project county" (not "County")
+> **Large files (> 2000 lines):** Read state declarations first (lines 1-300 typically) to understand the FormData interface, useState vars, and helper functions. Then read JSX sections one at a time. If you cannot fully integrate, flag in output: `PARTIAL: src/components/LargeForm.tsx (3300 lines — integrated N fields, manual review needed for sections X, Y)`
 
-**`ready:` gates — CRITICAL for progressive forms:**
+**What to collect:**
 
-When fields only appear after a user action (upload completes, save clicked, etc.), the step MUST have a `ready:` condition. Without it, `getFormSchema` exposes invisible fields, causing the LLM to skip required navigation steps.
+- **All `useState` variables.** Categorize each as:
+  - *Form data* — values the user types/selects (firstName, email, nationality)
+  - *UI state* — tabs, modals, loading, animation flags
+  - *File uploads* — file references, uploaded-file state
+  - *Flags* — consent, agreement, processing booleans
+- **Tab type and state** — e.g. `const [activeTab, setActiveTab] = useState<'form' | 'documents' | 'send'>('form')`
+- **Section conditions** — variables that gate visibility (showDirectorForm, showProjectSection, hasUploadedFile)
+- **Submit handler** — the function called when the user submits
 
-Two-step split pattern for upload-gated text fields:
-```tsx
-// Upload field — always ready when section is open
-{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm,
-  gatedAction: 'pin-reg.addDirector',
-  fields: [{ id: 'director.passportUpload', label: 'Upload passport copy', type: 'upload', required: true, bind: [...] }] },
-// Text fields — only ready after upload completes
-{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm && hasUploadedFile,
-  fields: [{ id: 'director.firstName', ... }, ...] },
-```
+**What to skip — do NOT register these as form fields:**
+- UI toggle/flag state (modals, accordions, loading, animation)
+- Collection/array state (expose via UI actions instead)
+- Loading/error/processing indicators
+- Validation error state
+- Uncontrolled inputs (no React state = no bind target)
 
-Same step name = fields merge into one schema section. Text fields appear only when `ready` is true.
+**Choose a prefix** for this component's IDs: a short kebab-case name (e.g. `pin-reg`, `evaluate-investment`, `phyto`).
 
-For save-gated sections (e.g., project fields appear after director is saved):
-```tsx
-{ step: 'Project Information', visible: activeTab === 'form', ready: showProjectSection, fields: [...] }
-```
-
-How to identify: look for `{condition && (<div>...fields...</div>)}` in JSX. The condition variable is your `ready:` gate.
-
-**Upload-only tabs must be registered.** If a tab (Documents, Attachments) has only upload fields, register them all:
-```tsx
-{ step: 'Required Documents', visible: activeTab === 'documents',
-  fields: [
-    { id: 'docs.passport', label: 'Passport photo for each shareholder', type: 'upload', required: true, bind: [file ? 'uploaded' : '', () => {}] },
-    // ... every upload field on this tab
-  ] }
-```
-
-Without this, `getFormSchema` returns "no fields visible" on that tab and the LLM loops.
-
-**Field types — trust the RENDERED element, not assumptions:**
-
-| Rendered Element | Correct `type` | Notes |
-|---|---|---|
-| `<select>` | `select` with `options` array | Extract options to module-scope constants |
-| `<input type="tel">` | `tel` | |
-| `<input type="email">` | `email` | |
-| `<input type="date">` | `date` | |
-| `<input type="text">` | `text` | NEVER add options |
-| `<textarea>` | `text` | |
-| `<input type="number">` | `text` | `number` not in FormFieldType |
-| `<input type="radio">` | `radio` with `options` | |
-| `<input type="checkbox">` | `checkbox` | |
-
-**CRITICAL — Custom wrapper components:**
-Projects often wrap `<select>` in custom components like `NationalitySelect`, `CountySelect`, `PhoneCodeSelect`, or use custom `Switcher`/`RadioGroup` components. Before assigning a field type:
-1. Check if the JSX uses a custom component (not a raw HTML element)
-2. Read the custom component's source to determine what it renders internally
-3. If it renders `<select>` → type `select`. If it renders radio buttons → type `radio`. If it renders toggle buttons → type `radio`.
-4. For custom select components with large option lists (70+ items like nationalities): extract the first 10-15 representative options and add a comment `// Subset — full list in NationalitySelect component`. Do NOT fabricate options not present in the source.
-
-**CRITICAL:** NEVER assign `type: 'select'` unless the rendered element is actually a `<select>`. Many fields that seem like dropdowns are actually `<input type="text">` in Figma Make output.
-
-**CRITICAL:** NEVER fabricate option values. Only extract options from actual `<option>` elements, custom component source arrays, or module-scope constants in the source code.
-
-**State binding patterns — three forms exist in Figma Make projects:**
+**Determine the state binding pattern** used by this component:
 
 Pattern A — Individual `useState` variables (most common):
 ```typescript
@@ -289,21 +241,143 @@ const updateFormData = (field: string, value: string) => setFormData(prev => ({.
 bind: [formData.firstName, (v) => updateFormData('firstName', v as string)]
 ```
 
-Read the component's state declarations to determine which pattern applies.
+---
+
+#### Step 2: Map tabs
+
+IF the component has tabs or step/wizard navigation:
+
+```typescript
+useRegisterTabSwitchAction(
+  'prefix',
+  ['form', 'send'] as const,  // must match component's tab type exactly
+  (tab) => setActiveTab(tab as TabType),
+  'prefix'
+);
+```
+
+Also works for multi-page/multi-step wizards — use page/section names as tab values.
+
+For **nested tab hierarchies** (parent has outer tabs, child has inner sections): register each tab switch in the component that owns that tab state.
+
+Note which tab each section of fields belongs to — you will need this for `visible:` in Step 3.
+
+---
+
+#### Step 3: Map sections and gates
+
+Walk the JSX and identify each logical section (grouped by headings, `<div>` wrappers, or conditional blocks). For each section, record:
+
+| Property | How to determine |
+|---|---|
+| **Section name** | From the heading text or grouping label in JSX |
+| **`visible:`** | Which tab is it on? e.g. `activeTab === 'form'` |
+| **`ready:`** | Is it behind a condition? e.g. `showSection`, `hasUploaded`, `directorsCount > 0` |
+| **`gatedAction:`** | Does it need a UI action to reveal? e.g. `'pin-reg.addDirector'` |
+
+**`ready:` gates — CRITICAL for progressive forms:**
+When fields only appear after a user action (upload completes, save clicked, etc.), the step MUST have a `ready:` condition. Without it, `getFormSchema` exposes invisible fields, causing the LLM to skip required navigation steps.
+
+How to identify: look for `{condition && (<div>...fields...</div>)}` in JSX. The condition variable is your `ready:` gate.
 
 **Visibility:** Walk up the JSX tree from each field's element, collect all `{condition && (...)}` gates, AND them together. Include `!isProcessing*` guards. For section-based visibility (e.g. `currentSection === 'applicant'`), use the section condition as the step-level `visible`.
 
-**Required flags:** Only set `required: true` if the label has `<span className="text-red-500">*</span>` or equivalent marker, or the `<input>` has a `required` attribute. Default to omitting (false).
+---
 
-**Skip — do NOT register these as form fields:**
-- UI toggle/flag state (modals, accordions, loading, animation)
-- Collection/array state (expose via UI actions instead)
-- Loading/error/processing indicators
-- Validation error state
-- Uncontrolled inputs (no React state = no bind target)
+#### Step 4: Map fields per section
 
-**UI actions (REQUIRED for every form component):**
-Add `useRegisterUIAction` for ALL interactive button actions — not just add/remove. Common actions:
+For each field in each section, produce a field definition:
+
+| Property | How to determine |
+|---|---|
+| **`id:`** | `{prefix}.{section}.{field}` — field is camelCase |
+| **`label:`** | COPY from JSX heading/label verbatim. e.g. "Director first name" not "First name", "Project county" not "County" |
+| **`type:`** | Check the RENDERED element (see type table below) |
+| **`required:`** | Only `true` if label has `<span className="text-red-500">*</span>` or `<input>` has `required` attribute. Default: omit (false) |
+| **`options:`** | Only for `select` and `radio` types. Extract from source code |
+| **`bind:`** | Match the component's state pattern (A/B/C from Step 1) |
+
+**Field type table — trust the RENDERED element, not assumptions:**
+
+| Rendered Element | Correct `type` | Notes |
+|---|---|---|
+| `<select>` | `select` with `options` array | Extract options to module-scope constants |
+| `<input type="tel">` | `tel` | |
+| `<input type="email">` | `email` | |
+| `<input type="date">` | `date` | |
+| `<input type="text">` | `text` | NEVER add options |
+| `<textarea>` | `text` | |
+| `<input type="number">` | `text` | `number` not in FormFieldType |
+| `<input type="radio">` | `radio` with `options` | |
+| `<input type="checkbox">` | `checkbox` | |
+
+**CRITICAL — Custom wrapper components:**
+Projects often wrap `<select>` in custom components like `NationalitySelect`, `CountySelect`, `PhoneCodeSelect`, or use custom `Switcher`/`RadioGroup` components. Before assigning a field type:
+1. Check if the JSX uses a custom component (not a raw HTML element)
+2. Read the custom component's source to determine what it renders internally
+3. If it renders `<select>` → type `select`. If it renders radio buttons → type `radio`. If it renders toggle buttons → type `radio`.
+4. For custom select components with large option lists (70+ items like nationalities): extract the first 10-15 representative options and add a comment `// Subset — full list in NationalitySelect component`. Do NOT fabricate options not present in the source.
+
+**CRITICAL:** NEVER assign `type: 'select'` unless the rendered element is actually a `<select>`. Many fields that seem like dropdowns are actually `<input type="text">` in Figma Make output.
+
+**CRITICAL:** NEVER fabricate option values. Only extract options from actual `<option>` elements, custom component source arrays, or module-scope constants in the source code.
+
+---
+
+#### Step 5: Handle upload-gated fields
+
+IF a section has an upload field AND text fields that appear only after the upload completes:
+
+Split into two `useProgressiveFields` steps with the SAME step name:
+```tsx
+// Step A: upload only — ready when section is open
+{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm,
+  gatedAction: 'pin-reg.addDirector',
+  fields: [{ id: 'director.passportUpload', label: 'Upload passport copy', type: 'upload', required: true, bind: [...] }] },
+// Step B: text fields — ready only after upload completes
+{ step: 'Director Details', visible: activeTab === 'form', ready: showDirectorForm && hasUploadedFile,
+  fields: [{ id: 'director.firstName', ... }, ...] },
+```
+
+Same step name = fields merge into one schema section. The text fields appear only when their `ready` condition is true.
+
+IF no upload-gated text fields exist in this section, skip this step.
+
+---
+
+#### Step 6: Handle save-gated sections
+
+IF a section appears only after a Save/Add action (look for `{condition && (<div>...fields...</div>)}` where the condition is set by a save/add handler):
+
+Add `ready: conditionVariable` to that step:
+```tsx
+{ step: 'Project Information', visible: activeTab === 'form', ready: showProjectSection, fields: [...] }
+```
+
+IF no save-gated sections exist in this component, skip this step.
+
+---
+
+#### Step 7: Register upload-only tabs
+
+IF a tab has ONLY upload fields (e.g. Documents, Attachments tab), register them all:
+```tsx
+{ step: 'Required Documents', visible: activeTab === 'documents',
+  fields: [
+    { id: 'docs.passport', label: 'Passport photo for each shareholder', type: 'upload', required: true, bind: [file ? 'uploaded' : '', () => {}] },
+    // ... every upload field on this tab
+  ] }
+```
+
+Without this, `getFormSchema` returns "no fields visible" on that tab and the LLM loops.
+
+IF no upload-only tabs exist, skip this step.
+
+---
+
+#### Step 8: Register UI actions
+
+For EVERY interactive button in the component that is not a form field, add `useRegisterUIAction`. Common actions:
 - Add/remove items in a list (directors, documents, line items)
 - Upload/delete files
 - Clear/reset form sections
@@ -323,21 +397,11 @@ useRegisterUIAction(
 );
 ```
 
-**Tab/step switch (REQUIRED if component has tabs or step navigation):**
-```typescript
-useRegisterTabSwitchAction(
-  'prefix',
-  ['form', 'send'] as const,  // must match component's tab type
-  (tab) => setActiveTab(tab as TabType),
-  'prefix'
-);
-```
-Also works for multi-page/multi-step wizards — use page/section names as tab values.
+---
 
-For **nested tab hierarchies** (parent has outer tabs, child has inner sections): register each tab switch in the component that owns that tab state.
+#### Step 9: Register submit action
 
-**Submit action (REQUIRED for every form component):**
-Even if the component doesn't have an explicit submit handler, add one. If the component has a "Submit" or "Send" button, hook it. If it only has navigation to next page, make the guard check required fields:
+REQUIRED for every form component, even without an explicit submit handler:
 ```typescript
 useRegisterSubmitAction('prefix', {
   description: 'Submit the [form name] application',
@@ -353,11 +417,20 @@ useRegisterSubmitAction('prefix', {
 });
 ```
 
-**Large files (> 2000 lines):**
-1. Read state declarations first (lines 1-300 typically): understand FormData interface, useState vars, helper functions
-2. Read JSX sections one at a time to map fields to their rendered elements
-3. Integrate what you can (imports, useProgressiveFields, UI actions)
-4. Flag in output: `PARTIAL: src/components/LargeForm.tsx (3300 lines — integrated N fields, manual review needed for sections X, Y)`
+Guard should check real preconditions: required tabs visited, required uploads present, consent checked.
+
+---
+
+#### Step 10: Verify
+
+Before moving to the next component:
+
+- [ ] Labels match UI text exactly (copy-pasted from JSX, not paraphrased)
+- [ ] All field IDs reference real state variables in the component
+- [ ] All `gatedAction` IDs match a registered `useRegisterUIAction`
+- [ ] All `visible:` / `ready:` conditions use real variables from the component
+- [ ] No fabricated option values — all extracted from source
+- [ ] Build passes: `npm run build` (or `npx vite build`)
 
 ## 5. Validation
 
