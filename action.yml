@@ -110,23 +110,29 @@ runs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Restore Claude-modified files
+    - name: Merge main into voice-agent branch
       if: steps.mode.outputs.mode == 'incremental'
       shell: bash
       run: |
-        # Restore previous integration from voice-agent branch.
-        # Scaffold runs next and overwrites generated files (voice-config.ts).
-        BRANCH="origin/${{ inputs.voice_agent_branch }}"
-        RESTORED=0
-        for f in $(git diff --name-only origin/main "$BRANCH" -- src/ server/voice-config.ts 2>/dev/null || true); do
-          if git show "${BRANCH}:${f}" &>/dev/null; then
-            mkdir -p "$(dirname "$f")"
-            git show "${BRANCH}:${f}" > "$f"
-            echo "  Restored: $f"
-            RESTORED=$((RESTORED + 1))
-          fi
-        done
-        echo "  Total restored: $RESTORED files"
+        # Start from the existing voice-agent branch and merge main into it.
+        # This preserves all development commits while pulling in Figma changes.
+        git checkout "origin/${{ inputs.voice_agent_branch }}" -B "${{ inputs.voice_agent_branch }}"
+        git merge main --no-edit -m "chore: merge main (Figma changes) into voice-agent" || {
+          echo "::warning::Merge conflict detected — falling back to file-level restore"
+          git merge --abort
+          # Fallback: stay on main, restore voice-agent files on top
+          git checkout main
+          BRANCH="origin/${{ inputs.voice_agent_branch }}"
+          RESTORED=0
+          for f in $(git diff --name-only origin/main "$BRANCH" -- src/ server/ 2>/dev/null || true); do
+            if git show "${BRANCH}:${f}" &>/dev/null; then
+              mkdir -p "$(dirname "$f")"
+              git show "${BRANCH}:${f}" > "$f"
+              RESTORED=$((RESTORED + 1))
+            fi
+          done
+          echo "  Fallback restored: $RESTORED files"
+        }
 
     - name: Scaffold from templates
       shell: bash
@@ -191,20 +197,43 @@ runs:
       id: push
       shell: bash
       run: |
-        git checkout -B "${{ inputs.voice_agent_branch }}"
-        git add -A
+        BRANCH="${{ inputs.voice_agent_branch }}"
+        MODE="${{ steps.mode.outputs.mode }}"
+        MAIN_SHORT=$(git rev-parse --short main)
 
-        # Compare tree hash to skip no-op pushes
-        NEW_TREE=$(git write-tree)
-        OLD_TREE=$(git rev-parse "origin/${{ inputs.voice_agent_branch }}^{tree}" 2>/dev/null || echo "none")
-        if [[ "$NEW_TREE" == "$OLD_TREE" ]]; then
-          echo "Tree unchanged — skipping push"
-          echo "skipped=true" >> "$GITHUB_OUTPUT"
-          exit 0
+        if [[ "$MODE" == "incremental" ]]; then
+          # Incremental: merge main into existing voice-agent branch.
+          # This preserves development commits while pulling in Figma changes.
+          git stash --include-untracked
+          git checkout "$BRANCH"
+          git stash pop || true
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes — skipping push"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "chore: sync voice-agent with main ${MAIN_SHORT}"
+          git push origin "$BRANCH"
+        else
+          # Initial: create branch from scratch (first-time setup)
+          git checkout -B "$BRANCH"
+          git add -A
+
+          NEW_TREE=$(git write-tree)
+          OLD_TREE=$(git rev-parse "origin/${BRANCH}^{tree}" 2>/dev/null || echo "none")
+          if [[ "$NEW_TREE" == "$OLD_TREE" ]]; then
+            echo "Tree unchanged — skipping push"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "chore: initialize voice-agent from main ${MAIN_SHORT}"
+          git push --force origin "$BRANCH"
         fi
 
-        git commit -m "chore: rebuild voice-agent from main $(git rev-parse --short main)"
-        git push --force origin "${{ inputs.voice_agent_branch }}"
         echo "skipped=false" >> "$GITHUB_OUTPUT"
       env:
         GH_TOKEN: ${{ inputs.github_token }}
