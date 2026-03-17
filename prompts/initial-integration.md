@@ -440,30 +440,36 @@ Pretend you are the voice assistant LLM at runtime. Walk through the form tab by
 **For each tab, ask:**
 
 1. **"What does getFormSchema return right now?"** List the sections and fields that would appear based on your `visible:` and `ready:` conditions with the component in its initial state (nothing filled, no actions taken).
-   - If you see fields the user CANNOT see on screen → missing `ready:` gate
-   - If you see 0 fields on a tab with upload areas → missing upload-only tab registration (Step 7)
+   - If you see fields the user CANNOT see on screen → **FIX:** add `ready:` gate referencing the condition variable from JSX (go back to Step 6)
+   - If you see 0 fields on a tab with upload areas → **FIX:** register those upload fields (go back to Step 7)
 
 2. **"After I fill these fields, what happens?"** Simulate fillFormFields → auto getFormSchema refresh.
-   - If new sections from a DIFFERENT tab appear → missing `ready:` gate tied to a save/navigate action
-   - If 15+ fields appear at once in one section → step is too large, split it
+   - If new sections from a DIFFERENT tab appear → **FIX:** add `ready:` gate tied to the save/navigate action's state variable (Step 6)
+   - If 15+ fields appear at once in one section → **FIX:** split the step into smaller logical groups (Step 3/4)
 
 3. **"After all fields are filled, what action do I take?"** Check UI_ACTIONS.
-   - If no save/tab-switch action exists to advance → missing `useRegisterUIAction`
-   - If the only path forward requires a button click not registered as an action → user gets stuck
+   - If no save/tab-switch action exists to advance → **FIX:** register the button as a `useRegisterUIAction` (Step 8)
+   - If the only path forward requires a button click not registered as an action → **FIX:** same — register it (Step 8)
 
 4. **"Can I submit?"** Try calling the submit action.
-   - If no submit action is registered → add `useRegisterSubmitAction` (Step 9)
-   - If guard returns an error that the LLM cannot resolve via tools → guard is too strict or missing guidance
+   - If no submit action is registered → **FIX:** add `useRegisterSubmitAction` (Step 9)
+   - If guard returns an error that the LLM cannot resolve via tools → **FIX:** relax the guard or add the missing tool/action that unblocks it
 
 5. **"If I say the field names out loud, can the user find them?"**
-   - If a label says "Signed statement of nominal capital" but the UI shows "Upload signed Capital Statement" → label mismatch
+   - If a label differs from what the UI shows → **FIX:** replace the label with the exact text from the JSX heading (Step 4)
 
-**Common failures this step catches:**
-- Upload field + text fields in the same step → LLM offers "manual entry" for gated fields
-- Project section visible before director save → LLM skips the Save button
-- Documents tab with no registered fields → LLM loops on submit guard
-- Submit action not registered → LLM fabricates action ID, gets "not found"
-- 30 fields in one flat step → LLM dumps everything in one sentence
+**If any check fails, fix it and re-run this step from check 1.** Do not proceed to Step 11 until all 5 checks pass.
+
+**Quick reference — failure → fix:**
+| Failure | Root cause | Fix step |
+|---------|-----------|----------|
+| Invisible fields in schema | Missing `ready:` gate | Step 5 or 6 |
+| Empty tab in schema | Upload fields not registered | Step 7 |
+| No action to advance | Button not registered as UI action | Step 8 |
+| Submit not found | `useRegisterSubmitAction` missing | Step 9 |
+| User cannot find field | Label doesn't match UI text | Step 4 |
+| LLM dumps all fields | Step too large (15+ fields) | Step 3/4 |
+| LLM offers manual entry | Upload + text in same step | Step 5 |
 
 #### Step 11: Verify
 
