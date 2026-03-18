@@ -25,8 +25,12 @@ COPILOT="${COPILOT_NAME:-Assistant}"
 sed "s|__VOICE_AGENT_VERSION__|${VERSION}|g" "$TEMPLATES/server/package.json.tmpl" > server/package.json
 sed "s|__COPILOT_NAME__|${COPILOT}|g" "$TEMPLATES/server/.env.example" > server/.env.example
 
-# Voice config files (node substitution — safe for all characters in user values)
-echo "=== Scaffold: generating voice-config files ==="
+# Voice config files — only generate if they don't exist yet.
+# In incremental mode, voice-config files are maintained by Claude Code
+# (or manual edits). Overwriting them with the scaffold placeholder would
+# destroy real service data whenever Claude Code is skipped by the content
+# hash check.
+echo "=== Scaffold: voice-config files ==="
 
 SITE_TITLE="${SITE_TITLE:-$DESCRIPTION}"
 _DEFAULT_FAREWELL="Thank you for using ${COPILOT}. Have a great day!"
@@ -43,37 +47,45 @@ export SITE_TITLE FAREWELL_MESSAGE="${FAREWELL}" SYSTEM_PROMPT_INTRO="${SYSTEM_I
 export GREETING_MESSAGE="${GREETING}" AVATAR_URL="${AVATAR}" DESCRIPTION="${DESCRIPTION:-}"
 export LANGUAGE="${LANGUAGE:-en}"
 
-node <<'SCAFFOLD_EOF'
-  const fs = require('fs');
-  const T = process.env.TEMPLATES;
-  const sub = (tpl, subs) => {
-    let t = fs.readFileSync(tpl, 'utf8');
-    for (const [k, v] of Object.entries(subs)) {
-      // Escape single quotes — placeholders land inside single-quoted TS strings
-      const escaped = v.replace(/'/g, "\\'");
-      t = t.split(k).join(escaped);
+if [[ -f server/voice-config.ts && -f src/voice-config.ts ]]; then
+  echo "  voice-config files exist — preserving (Claude Code manages these)"
+else
+  echo "  Generating initial voice-config files"
+  node <<'SCAFFOLD_EOF'
+    const fs = require('fs');
+    const T = process.env.TEMPLATES;
+    const sub = (tpl, subs) => {
+      let t = fs.readFileSync(tpl, 'utf8');
+      for (const [k, v] of Object.entries(subs)) {
+        const escaped = v.replace(/'/g, "\\'");
+        t = t.split(k).join(escaped);
+      }
+      return t;
+    };
+
+    const baseSubs = {
+      '__COPILOT_NAME__': process.env.COPILOT_NAME || 'Assistant',
+      '__COPILOT_COLOR__': process.env.COPILOT_COLOR || '#1B5E20',
+      '__SITE_TITLE__': process.env.SITE_TITLE || '',
+      '__FAREWELL_MESSAGE__': process.env.FAREWELL_MESSAGE || '',
+    };
+
+    // Server config
+    const serverSubs = { ...baseSubs, '__SYSTEM_PROMPT_INTRO__': process.env.SYSTEM_PROMPT_INTRO || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
+    if (!fs.existsSync('server/voice-config.ts')) {
+      fs.writeFileSync('server/voice-config.ts', sub(T + '/server/voice-config.ts.tmpl', serverSubs));
+      console.log('  Created server/voice-config.ts');
     }
-    return t;
-  };
 
-  const baseSubs = {
-    '__COPILOT_NAME__': process.env.COPILOT_NAME || 'Assistant',
-    '__COPILOT_COLOR__': process.env.COPILOT_COLOR || '#1B5E20',
-    '__SITE_TITLE__': process.env.SITE_TITLE || '',
-    '__FAREWELL_MESSAGE__': process.env.FAREWELL_MESSAGE || '',
-  };
-
-  // Server config
-  const serverSubs = { ...baseSubs, '__SYSTEM_PROMPT_INTRO__': process.env.SYSTEM_PROMPT_INTRO || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
-  fs.writeFileSync('server/voice-config.ts', sub(T + '/server/voice-config.ts.tmpl', serverSubs));
-  console.log('  Created server/voice-config.ts');
-
-  // Client config
-  const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
-  fs.mkdirSync('src', { recursive: true });
-  fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
-  console.log('  Created src/voice-config.ts');
+    // Client config
+    const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
+    fs.mkdirSync('src', { recursive: true });
+    if (!fs.existsSync('src/voice-config.ts')) {
+      fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
+      console.log('  Created src/voice-config.ts');
+    }
 SCAFFOLD_EOF
+fi
 
 # Docker / deploy files
 cp "$TEMPLATES/Dockerfile" Dockerfile
