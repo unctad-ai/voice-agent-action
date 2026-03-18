@@ -92,35 +92,33 @@ sed "s|__COPILOT_NAME__|${COPILOT}|g" docker-compose.yml > docker-compose.yml.tm
 
 echo "=== Scaffold: adding voice-agent packages to package.json ==="
 
-# Add voice-agent packages to frontend package.json if not present
+# Add or update voice-agent packages in frontend package.json
 add_dep() {
   local pkg="$1" ver="$2"
-  if ! grep -q "\"$pkg\"" package.json; then
-    node -e "
-      const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
-      pkg.dependencies = pkg.dependencies || {};
-      pkg.dependencies['$pkg'] = '$ver';
-      require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-    "
-    echo "  Added $pkg@$ver"
-  else
-    echo "  $pkg already present"
-  fi
+  node -e "
+    const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+    pkg.dependencies = pkg.dependencies || {};
+    const old = pkg.dependencies['$pkg'];
+    pkg.dependencies['$pkg'] = '$ver';
+    require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+    if (!old) console.log('  Added $pkg@$ver');
+    else if (old !== '$ver') console.log('  Updated $pkg: ' + old + ' → $ver');
+    else console.log('  $pkg@$ver (unchanged)');
+  "
 }
 
 add_dev_dep() {
   local pkg="$1" ver="$2"
-  if ! grep -q "\"$pkg\"" package.json; then
-    node -e "
-      const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
-      pkg.devDependencies = pkg.devDependencies || {};
-      pkg.devDependencies['$pkg'] = '$ver';
-      require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-    "
-    echo "  Added $pkg@$ver (dev)"
-  else
-    echo "  $pkg already present"
-  fi
+  node -e "
+    const pkg = JSON.parse(require('fs').readFileSync('package.json','utf8'));
+    pkg.devDependencies = pkg.devDependencies || {};
+    const old = pkg.devDependencies['$pkg'];
+    pkg.devDependencies['$pkg'] = '$ver';
+    require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+    if (!old) console.log('  Added $pkg@$ver (dev)');
+    else if (old !== '$ver') console.log('  Updated $pkg (dev): ' + old + ' → $ver');
+    else console.log('  $pkg@$ver (dev, unchanged)');
+  "
 }
 
 add_dep "@unctad-ai/voice-agent-core" "$VERSION"
