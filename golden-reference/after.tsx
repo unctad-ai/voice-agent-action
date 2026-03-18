@@ -184,14 +184,217 @@ export default function PinRegistrationApplication() {
   const [isInfoCardOpen, setIsInfoCardOpen] = useState(false);
 
   // --- Form Field Registry: all fields via useProgressiveFields ---
-  const projectFieldsVisible = hasProjectReference === 'no' || projectDataQueried;
-  const passportProcessed = showDirectorForm && hasUploadedFile && !isProcessingPassport;
-
   useProgressiveFields('pin-reg', [
-    // Step 1: Project reference question
+    // ── Director Details (Step A): upload field only ──
+    // Appears as a gated placeholder until the addDirector action is called.
+    // After the action fires, only the upload field is shown.
     {
-      step: 'Project reference',
-      visible: showProjectReferenceSection,
+      step: 'Director Details',
+      visible: activeTab === 'form',
+      ready: showDirectorForm,
+      gatedAction: 'pin-reg.addDirector',
+      fields: [
+        {
+          id: 'director.passportUpload',
+          label: 'Upload passport copy (auto-fills director details)',
+          type: 'upload' as any,
+          required: true,
+          bind: [hasUploadedFile ? 'uploaded' : '', () => {}],
+        },
+      ],
+    },
+    // ── Director Details (Step B): text fields after passport upload ──
+    // Same step name so the schema merges them into one logical section.
+    // Only appears once the passport file has been uploaded.
+    {
+      step: 'Director Details',
+      visible: activeTab === 'form',
+      ready: showDirectorForm && hasUploadedFile,
+      fields: [
+        {
+          id: 'director.firstName',
+          label: 'Director first name',
+          type: 'text',
+          required: true,
+          bind: [
+            currentDirector.firstName,
+            (v) => setCurrentDirector((prev) => ({ ...prev, firstName: v as string })),
+          ],
+        },
+        {
+          id: 'director.middleName',
+          label: 'Director middle name',
+          type: 'text',
+          bind: [
+            currentDirector.middleName,
+            (v) => setCurrentDirector((prev) => ({ ...prev, middleName: v as string })),
+          ],
+        },
+        {
+          id: 'director.lastName',
+          label: 'Director last name',
+          type: 'text',
+          required: true,
+          bind: [
+            currentDirector.lastName,
+            (v) => setCurrentDirector((prev) => ({ ...prev, lastName: v as string })),
+          ],
+        },
+        {
+          id: 'director.dateOfBirth',
+          label: 'Director date of birth',
+          type: 'date',
+          bind: [
+            currentDirector.dateOfBirth,
+            (v) => setCurrentDirector((prev) => ({ ...prev, dateOfBirth: v as string })),
+          ],
+        },
+        {
+          id: 'director.nationality',
+          label: 'Director nationality',
+          type: 'select',
+          required: true,
+          options: NATIONALITY_OPTIONS,
+          bind: [
+            currentDirector.nationality,
+            (v) => setCurrentDirector((prev) => ({ ...prev, nationality: v as string })),
+          ],
+        },
+        {
+          id: 'director.gender',
+          label: 'Director gender',
+          type: 'radio',
+          required: true,
+          options: GENDER_OPTIONS,
+          bind: [
+            currentDirector.gender,
+            (v) =>
+              setCurrentDirector((prev) => ({ ...prev, gender: v as 'male' | 'female' | '' })),
+          ],
+        },
+        {
+          id: 'director.passportNumber',
+          label: 'Director passport number',
+          type: 'text',
+          bind: [
+            currentDirector.passportNumber,
+            (v) => setCurrentDirector((prev) => ({ ...prev, passportNumber: v as string })),
+          ],
+        },
+        {
+          id: 'director.issuingCountry',
+          label: 'Director issuing country',
+          type: 'select',
+          options: NATIONALITY_OPTIONS,
+          bind: [
+            currentDirector.issuingCountry,
+            (v) => setCurrentDirector((prev) => ({ ...prev, issuingCountry: v as string })),
+          ],
+        },
+        {
+          id: 'director.issueDate',
+          label: 'Director passport issue date',
+          type: 'date',
+          bind: [
+            currentDirector.issueDate,
+            (v) => setCurrentDirector((prev) => ({ ...prev, issueDate: v as string })),
+          ],
+        },
+        {
+          id: 'director.expiryDate',
+          label: 'Director passport expiry date',
+          type: 'date',
+          bind: [
+            currentDirector.expiryDate,
+            (v) => setCurrentDirector((prev) => ({ ...prev, expiryDate: v as string })),
+          ],
+        },
+      ],
+    },
+    // ── Director Address: gated behind addDirector action ──
+    {
+      step: 'Director Address',
+      visible: activeTab === 'form',
+      ready: showDirectorForm,
+      gatedAction: 'pin-reg.addDirector',
+      fields: [
+        {
+          id: 'director.address',
+          label: 'Director residential address',
+          type: 'text',
+          required: true,
+          bind: [
+            currentDirector.address,
+            (v) => setCurrentDirector((prev) => ({ ...prev, address: v as string })),
+          ],
+        },
+        {
+          id: 'director.town',
+          label: 'Director town',
+          type: 'text',
+          bind: [
+            currentDirector.town,
+            (v) => setCurrentDirector((prev) => ({ ...prev, town: v as string })),
+          ],
+        },
+        {
+          id: 'director.country',
+          label: 'Director country',
+          type: 'select',
+          required: true,
+          options: COUNTRY_OPTIONS,
+          bind: [
+            currentDirector.country,
+            (v) => setCurrentDirector((prev) => ({ ...prev, country: v as string })),
+          ],
+        },
+      ],
+    },
+    // ── Director Contact: gated behind addDirector action ──
+    {
+      step: 'Director Contact',
+      visible: activeTab === 'form',
+      ready: showDirectorForm,
+      gatedAction: 'pin-reg.addDirector',
+      fields: [
+        {
+          id: 'director.countryCode',
+          label: 'Director country code',
+          type: 'select',
+          required: true,
+          options: COUNTRY_CODE_OPTIONS,
+          bind: [
+            currentDirector.countryCode,
+            (v) => setCurrentDirector((prev) => ({ ...prev, countryCode: v as string })),
+          ],
+        },
+        {
+          id: 'director.mobileNumber',
+          label: 'Director mobile number',
+          type: 'tel',
+          required: true,
+          bind: [
+            currentDirector.mobileNumber,
+            (v) => setCurrentDirector((prev) => ({ ...prev, mobileNumber: v as string })),
+          ],
+        },
+        {
+          id: 'director.email',
+          label: 'Director email',
+          type: 'email',
+          required: true,
+          bind: [
+            currentDirector.email,
+            (v) => setCurrentDirector((prev) => ({ ...prev, email: v as string })),
+          ],
+        },
+      ],
+    },
+    // ── Project Reference: save-gated (appears after director is saved) ──
+    {
+      step: 'Project Reference',
+      visible: activeTab === 'form',
+      ready: showProjectReferenceSection,
       fields: [
         {
           id: 'hasProjectReference',
@@ -202,10 +405,11 @@ export default function PinRegistrationApplication() {
         },
       ],
     },
-    // Step 2: Project information (visible after reference choice or queried data)
+    // ── Project Information: save-gated (appears after director is saved) ──
     {
-      step: 'Project information',
-      visible: projectFieldsVisible,
+      step: 'Project Information',
+      visible: activeTab === 'form',
+      ready: showProjectReferenceSection,
       fields: [
         {
           id: 'project.name',
@@ -294,178 +498,13 @@ export default function PinRegistrationApplication() {
         },
       ],
     },
-    // Step 3: Director personal details (visible after passport upload + processing)
+    // ── Submit: consent on send tab ──
     {
-      step: 'Director personal details',
-      visible: passportProcessed,
-      fields: [
-        {
-          id: 'director.firstName',
-          label: 'Director first name',
-          type: 'text',
-          required: true,
-          bind: [
-            currentDirector.firstName,
-            (v) => setCurrentDirector((prev) => ({ ...prev, firstName: v as string })),
-          ],
-        },
-        {
-          id: 'director.middleName',
-          label: 'Director middle name',
-          type: 'text',
-          bind: [
-            currentDirector.middleName,
-            (v) => setCurrentDirector((prev) => ({ ...prev, middleName: v as string })),
-          ],
-        },
-        {
-          id: 'director.lastName',
-          label: 'Director last name',
-          type: 'text',
-          required: true,
-          bind: [
-            currentDirector.lastName,
-            (v) => setCurrentDirector((prev) => ({ ...prev, lastName: v as string })),
-          ],
-        },
-        {
-          id: 'director.dateOfBirth',
-          label: 'Director date of birth',
-          type: 'date',
-          bind: [
-            currentDirector.dateOfBirth,
-            (v) => setCurrentDirector((prev) => ({ ...prev, dateOfBirth: v as string })),
-          ],
-        },
-        {
-          id: 'director.nationality',
-          label: 'Director nationality',
-          type: 'select',
-          required: true,
-          options: NATIONALITY_OPTIONS,
-          bind: [
-            currentDirector.nationality,
-            (v) => setCurrentDirector((prev) => ({ ...prev, nationality: v as string })),
-          ],
-        },
-        {
-          id: 'director.gender',
-          label: 'Director gender',
-          type: 'radio',
-          required: true,
-          options: GENDER_OPTIONS,
-          bind: [
-            currentDirector.gender,
-            (v) => setCurrentDirector((prev) => ({ ...prev, gender: v as 'male' | 'female' | '' })),
-          ],
-        },
-        {
-          id: 'director.passportNumber',
-          label: 'Director passport number',
-          type: 'text',
-          bind: [
-            currentDirector.passportNumber,
-            (v) => setCurrentDirector((prev) => ({ ...prev, passportNumber: v as string })),
-          ],
-        },
-        {
-          id: 'director.issuingCountry',
-          label: 'Director issuing country',
-          type: 'select',
-          options: NATIONALITY_OPTIONS,
-          bind: [
-            currentDirector.issuingCountry,
-            (v) => setCurrentDirector((prev) => ({ ...prev, issuingCountry: v as string })),
-          ],
-        },
-        {
-          id: 'director.issueDate',
-          label: 'Director passport issue date',
-          type: 'date',
-          bind: [
-            currentDirector.issueDate,
-            (v) => setCurrentDirector((prev) => ({ ...prev, issueDate: v as string })),
-          ],
-        },
-        {
-          id: 'director.expiryDate',
-          label: 'Director passport expiry date',
-          type: 'date',
-          bind: [
-            currentDirector.expiryDate,
-            (v) => setCurrentDirector((prev) => ({ ...prev, expiryDate: v as string })),
-          ],
-        },
-        {
-          id: 'director.address',
-          label: 'Director residential address',
-          type: 'text',
-          required: true,
-          bind: [
-            currentDirector.address,
-            (v) => setCurrentDirector((prev) => ({ ...prev, address: v as string })),
-          ],
-        },
-        {
-          id: 'director.town',
-          label: 'Director town',
-          type: 'text',
-          bind: [
-            currentDirector.town,
-            (v) => setCurrentDirector((prev) => ({ ...prev, town: v as string })),
-          ],
-        },
-        {
-          id: 'director.country',
-          label: 'Director country',
-          type: 'select',
-          required: true,
-          options: COUNTRY_OPTIONS,
-          bind: [
-            currentDirector.country,
-            (v) => setCurrentDirector((prev) => ({ ...prev, country: v as string })),
-          ],
-        },
-        {
-          id: 'director.countryCode',
-          label: 'Director country code',
-          type: 'select',
-          required: true,
-          options: COUNTRY_CODE_OPTIONS,
-          bind: [
-            currentDirector.countryCode,
-            (v) => setCurrentDirector((prev) => ({ ...prev, countryCode: v as string })),
-          ],
-        },
-        {
-          id: 'director.mobileNumber',
-          label: 'Director mobile number',
-          type: 'tel',
-          required: true,
-          bind: [
-            currentDirector.mobileNumber,
-            (v) => setCurrentDirector((prev) => ({ ...prev, mobileNumber: v as string })),
-          ],
-        },
-        {
-          id: 'director.email',
-          label: 'Director email',
-          type: 'email',
-          required: true,
-          bind: [
-            currentDirector.email,
-            (v) => setCurrentDirector((prev) => ({ ...prev, email: v as string })),
-          ],
-        },
-      ],
-    },
-    // Step 4: Consent (visible on send tab)
-    {
-      step: 'Consent',
+      step: 'Submit',
       visible: activeTab === 'send',
       fields: [
         {
-          id: 'consent',
+          id: 'send.consentChecked',
           label: 'Consent to share data',
           type: 'checkbox',
           bind: [consentChecked, (v) => setConsentChecked(v as boolean)],
