@@ -2,7 +2,6 @@
 FROM node:22-slim AS frontend
 WORKDIR /app
 COPY package.json package-lock.json* ./
-ARG NPM_CACHE_BUST=0
 RUN npm install --legacy-peer-deps
 COPY . .
 ARG VITE_BACKEND_URL
@@ -15,7 +14,6 @@ RUN printf 'VITE_BACKEND_URL=%s\nVITE_API_KEY=%s\nVITE_COPILOT_NAME=%s\n' \
 FROM node:22-slim
 WORKDIR /app
 COPY server/package.json server/package-lock.json* ./
-ARG NPM_CACHE_BUST=0
 RUN npm install --legacy-peer-deps
 COPY server/ .
 COPY --from=frontend /app/build ./build

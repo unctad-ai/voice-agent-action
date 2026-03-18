@@ -7,7 +7,6 @@ services:
         - VITE_BACKEND_URL=
         - VITE_API_KEY=${CLIENT_API_KEY:-}
         - VITE_COPILOT_NAME=${COPILOT_NAME:-__COPILOT_NAME__}
-        - NPM_CACHE_BUST=${NPM_CACHE_BUST:-0}
     expose:
       - "80"
     environment:
