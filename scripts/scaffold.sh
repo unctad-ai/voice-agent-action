@@ -6,10 +6,10 @@ ACTION_ROOT="$(dirname "$SCRIPT_DIR")"
 TEMPLATES="$ACTION_ROOT/templates"
 
 VERSION="${VOICE_AGENT_VERSION:-latest}"
-# Use "latest" as-is — Docker cache is busted via NPM_CACHE_BUST build arg
-# (set to a timestamp by update-all.sh or Coolify env vars).
+# Keep "latest" as-is — Coolify force_rebuild ensures fresh npm resolution.
+# Only pin when .voice-agent.yml specifies an explicit version.
 if [[ "$VERSION" == "latest" ]]; then
-  echo "  Using version: latest (resolved at Docker build time)"
+  echo "  Using version: latest"
 fi
 
 echo "=== Scaffold: copying templates ==="
