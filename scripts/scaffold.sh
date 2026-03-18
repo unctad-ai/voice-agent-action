@@ -6,11 +6,10 @@ ACTION_ROOT="$(dirname "$SCRIPT_DIR")"
 TEMPLATES="$ACTION_ROOT/templates"
 
 VERSION="${VOICE_AGENT_VERSION:-latest}"
-# Resolve "latest" to actual version so package.json changes when a new kit
-# version is published — this busts Docker's npm install cache layer.
+# Use "latest" as-is — Docker cache is busted via NPM_CACHE_BUST build arg
+# (set to a timestamp by update-all.sh or Coolify env vars).
 if [[ "$VERSION" == "latest" ]]; then
-  VERSION=$(npm view @unctad-ai/voice-agent-core version 2>/dev/null || echo "latest")
-  echo "  Resolved latest → $VERSION"
+  echo "  Using version: latest (resolved at Docker build time)"
 fi
 
 echo "=== Scaffold: copying templates ==="
