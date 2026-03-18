@@ -69,16 +69,6 @@ runs:
           echo "mode=initial" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Backup existing voice-agent branch
-      if: steps.mode.outputs.mode == 'incremental'
-      shell: bash
-      run: |
-        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        git tag "voice-agent-backup-${TIMESTAMP}" "origin/${{ inputs.voice_agent_branch }}"
-        git push origin "voice-agent-backup-${TIMESTAMP}"
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
-
     - name: Save ignored files
       if: steps.mode.outputs.mode == 'incremental'
       shell: bash

@@ -6,17 +6,17 @@ __COPILOT_NAME__ Voice Assistant — a React SPA with voice agent integration. O
 
 ## Commands
 
-- `docker compose up -d` — start frontend + backend
-- `docker compose down` — stop all services
+- `docker compose up -d` — start the app
+- `docker compose down` — stop the app
 - `docker compose logs -f` — tail logs
 - `docker compose up --build -d` — rebuild after changes
 - `npm install` — install dependencies (without Docker)
 - `npm run dev` — start Vite dev server (without Docker)
 - `npm run build` — production build to `build/`
 
-## Docker Compose
+## Docker
 
-Two services: `frontend` (Vite/nginx, port 80) + `backend` (Express, port 3001). Backend reads `server/.env` for API keys.
+Single container: Express serves the Vite build on port 80. Reads `server/.env` for API keys.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Two services: `frontend` (Vite/nginx, port 80) + `backend` (Express, port 3001).
 **Voice Agent:**
 - `src/voice-config.ts` — Client SiteConfig (copilot name, colors, services, routes)
 - `server/voice-config.ts` — Server SiteConfig (adds server tools, system prompt)
-- `server/index.ts` — Express server with chat/STT/TTS endpoints
+- `server/index.ts` — Express server with voice pipeline (WebSocket at /api/voice)
 - `src/App.tsx` — VoiceAgentProvider wrapping the app + GlassCopilotPanel
 
 **Voice-agent-kit packages:**
@@ -37,9 +37,14 @@ Two services: `frontend` (Vite/nginx, port 80) + `backend` (Express, port 3001).
 ## Environment Variables (server/.env)
 
 ```
-GROQ_API_KEY=...           # Required: Groq API key for LLM + Whisper STT
-STT_URL=...                # STT endpoint URL
-QWEN3_TTS_URL=...          # TTS endpoint URL
-CLIENT_API_KEY=...         # API key for frontend→backend auth
+GROQ_API_KEY=...                 # Required: Groq API key for LLM
+STT_URL=...                      # STT endpoint URL
+STT_HALLUCINATION_FILTER=1       # Filter STT noise (0 to disable)
+QWEN3_TTS_URL=...                # Qwen3 TTS endpoint
+POCKET_TTS_URL=...               # Pocket TTS endpoint
+LUXTTS_URL=...                   # LuxTTS endpoint
+VLLM_OMNI_TTS_URL=...            # vLLM-Omni TTS endpoint
+CLIENT_API_KEY=...               # API key for frontend→backend auth
+ADMIN_PASSWORD=admin             # Admin settings UI password
 COPILOT_NAME=__COPILOT_NAME__
 ```

@@ -9,9 +9,11 @@ On every push to `main`, this action:
 1. **Scaffolds** server code, Docker configs, and frontend dependencies from deterministic templates
 2. **Runs Claude Code** (claude-opus-4-6) to generate `voice-config.ts`, wrap `App.tsx`, and integrate form fields
 3. **Verifies** the Docker build passes
-4. **Force-pushes** to the `voice-agent` branch — Coolify picks it up automatically
+4. **Pushes** to the `voice-agent` branch — Coolify picks it up automatically
 
-No PRs are created. Figma Make owns `main`; merging voice-agent changes back into `main` is architecturally wrong since Figma Make regenerates `main` on every design change. The `voice-agent` branch is a derived artifact rebuilt from scratch each time.
+Initial runs force-push a new branch. Incremental runs merge `main` into the existing `voice-agent` branch, preserving dev commits.
+
+No PRs are created. Figma Make owns `main`; merging voice-agent changes back into `main` is architecturally wrong since Figma Make regenerates `main` on every design change. The `voice-agent` branch is a derived overlay on top of `main`.
 
 ## Usage
 
@@ -72,23 +74,15 @@ One path per line. Directories end with `/`. Lines starting with `#` are comment
 
 ### No PRs — direct branch deployment
 
-The action force-pushes to `voice-agent` instead of opening PRs. Figma Make regenerates `main` on every design change, so merging voice-agent patches back into `main` would be overwritten immediately. The voice-agent branch is a disposable overlay rebuilt from the latest `main` each run.
+Initial runs force-push a fresh `voice-agent` branch. Incremental runs merge `main` into the existing branch, preserving voice-agent dev commits. No PRs are opened. Figma Make regenerates `main` on every design change, so merging voice-agent patches back into `main` would be overwritten immediately.
 
 ### Mode detection: initial vs incremental
 
-The action checks whether `src/voice-config.ts` exists on the `voice-agent` branch. If it does, the run is incremental; otherwise it's initial. This matters for prompt selection and file preservation.
+The action checks whether both `src/voice-config.ts` and `server/voice-config.ts` exist on the `voice-agent` branch. If they do, the run is incremental; otherwise it's initial. This matters for prompt selection and file preservation.
 
 ### Content hash check
 
-On incremental runs, the action hashes the Claude Code input files (`src/App.tsx`, `src/data/services.ts`, form components). If the hash matches the previous run, Claude Code is skipped entirely and its output files are restored from the existing branch. This avoids the expensive LLM step when only cosmetic changes happened on `main`.
-
-### Backup tags
-
-Before each incremental rebuild, the action creates a timestamped backup tag (`voice-agent-backup-YYYYMMDD-HHMMSS`) so the previous state is always recoverable.
-
-### Tree hash check
-
-After building, the action compares the new git tree hash to the existing `voice-agent` branch. If identical, the push is skipped (no-op detection).
+On incremental runs, the action hashes the Claude Code input files (`src/App.tsx`, `src/data/services.ts`, form components). If the hash matches the previous run, Claude Code is skipped entirely — the existing integration on the voice-agent branch is preserved via the merge. This avoids the expensive LLM step when only cosmetic changes happened on `main`.
 
 ### Peer deps resolved dynamically
 
@@ -108,7 +102,7 @@ This requires review approval before these files can be modified or deleted.
 
 ### Docker cache busting
 
-Both Dockerfiles accept an `NPM_CACHE_BUST` build arg. When deploying a new voice-agent-kit version, set `NPM_CACHE_BUST=$(date +%s)` to force Docker to re-run `npm install` instead of using cached layers with stale `latest` versions.
+The Dockerfile accepts an `NPM_CACHE_BUST` build arg. When deploying a new voice-agent-kit version, set `NPM_CACHE_BUST=$(date +%s)` to force Docker to re-run `npm install` instead of using cached layers with stale `latest` versions.
 
 ### Self-hosted runner
 
@@ -130,9 +124,10 @@ The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Cod
 │   ├── restore-ignored.sh  # Restores ignored files after rebuild
 │   └── detect-changes.sh   # Classifies main branch changes (services, forms, cosmetic, etc.)
 ├── prompts/
+│   ├── context.md               # System prompt contract (rules → hook mapping)
 │   ├── initial-integration.md   # Claude Code prompt for first-time integration
 │   └── incremental-update.md    # Claude Code prompt for subsequent rebuilds
-└── golden-reference/       # Reviewed before/after App.tsx example
+└── golden-reference/       # Reviewed before/after form component example
     ├── before.tsx
     └── after.tsx
 ```
@@ -140,8 +135,9 @@ The workflow uses `self-hosted` runners (not `ubuntu-latest`) because Claude Cod
 ## Pipeline flow
 
 ```
-main push → read .voice-agent.yml → detect mode → backup tag (incremental)
-  → save ignored files (incremental) → content hash check → restore Claude files (incremental)
-  → scaffold templates → [Claude Code or skip] → restore ignored files
-  → Docker build verification → commit → force-push voice-agent branch
+main push → read .voice-agent.yml → detect mode
+  → save ignored files (incremental) → content hash check
+  → merge main into voice-agent (incremental) → scaffold templates
+  → [Claude Code or skip] → restore ignored files
+  → Docker build verification → commit → push voice-agent branch
 ```

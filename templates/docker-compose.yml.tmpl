@@ -14,11 +14,13 @@ services:
       - PORT=80
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - CLIENT_API_KEY=${CLIENT_API_KEY:-}
-      - QWEN3_TTS_URL=${QWEN3_TTS_URL:-}
       - STT_URL=${STT_URL:-}
+      - STT_HALLUCINATION_FILTER=${STT_HALLUCINATION_FILTER:-1}
+      - QWEN3_TTS_URL=${QWEN3_TTS_URL:-}
       - POCKET_TTS_URL=${POCKET_TTS_URL:-}
       - LUXTTS_URL=${LUXTTS_URL:-}
       - VLLM_OMNI_TTS_URL=${VLLM_OMNI_TTS_URL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
     volumes:
       - persona-data:/app/data/persona
     logging:

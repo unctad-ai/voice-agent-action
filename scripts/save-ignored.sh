@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Read .voice-agent-ignore from the voice-agent branch and save matching files.
-# These files survive the force-push rebuild cycle.
+# These files survive the rebuild cycle.
 #
 # Format: one path per line (no globs). Lines starting with # are comments.
 # Example .voice-agent-ignore:
