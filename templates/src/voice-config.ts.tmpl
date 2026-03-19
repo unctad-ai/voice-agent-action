@@ -1,5 +1,6 @@
 import type { SiteConfig } from '@unctad-ai/voice-agent-core';
 
+// __SERVICE_DATA_START__
 const services = [
   { id: 'general-help', title: 'General assistance', category: 'General' },
 ];
@@ -7,6 +8,7 @@ const services = [
 const categories = [
   { title: 'General', services },
 ];
+// __SERVICE_DATA_END__
 
 const categoryMap: Record<string, string> = {};
 for (const s of services) {

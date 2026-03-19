@@ -52,6 +52,7 @@ else
   echo "  Generating initial voice-config files"
   node <<'SCAFFOLD_EOF'
     const fs = require('fs');
+    const path = require('path');
     const T = process.env.TEMPLATES;
     const sub = (tpl, subs) => {
       let t = fs.readFileSync(tpl, 'utf8');
@@ -61,6 +62,10 @@ else
       }
       return t;
     };
+
+    // Detect canonical service data file
+    const serviceDataFile = ['src/data/services.tsx', 'src/data/services.ts']
+      .find(f => fs.existsSync(f));
 
     const baseSubs = {
       '__COPILOT_NAME__': process.env.COPILOT_NAME || 'Assistant',
@@ -76,12 +81,40 @@ else
       console.log('  Created server/voice-config.ts');
     }
 
-    // Client config
+    // Client config — use import from data file if available
     const clientSubs = { ...baseSubs, '__GREETING_MESSAGE__': process.env.GREETING_MESSAGE || '', '__AVATAR_URL__': process.env.AVATAR_URL || '', '__LANGUAGE__': process.env.LANGUAGE || 'en' };
     fs.mkdirSync('src', { recursive: true });
     if (!fs.existsSync('src/voice-config.ts')) {
-      fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
-      console.log('  Created src/voice-config.ts');
+      if (serviceDataFile) {
+        // Read the data file to detect exported names
+        const dataContent = fs.readFileSync(serviceDataFile, 'utf8');
+        const hasAllServices = /export\s+(const|function)\s+allServices/.test(dataContent);
+        const hasServiceCategories = /export\s+(const|function)\s+serviceCategories/.test(dataContent);
+        const importPath = './' + path.relative('src', serviceDataFile).replace(/\.tsx?$/, '');
+
+        if (hasAllServices && hasServiceCategories) {
+          // Generate voice-config that imports from canonical data source
+          let config = sub(T + '/src/voice-config.ts.tmpl', clientSubs);
+          // Replace placeholder service list + categories with imports
+          config = config.replace(
+            /import type \{ SiteConfig \} from '@unctad-ai\/voice-agent-core';/,
+            `import type { SiteConfig } from '@unctad-ai/voice-agent-core';\nimport { allServices, serviceCategories } from '${importPath}';`
+          );
+          config = config.replace(
+            /\/\/ __SERVICE_DATA_START__[\s\S]*?\/\/ __SERVICE_DATA_END__/,
+            'const services = allServices;\nconst categories = serviceCategories;'
+          );
+          fs.writeFileSync('src/voice-config.ts', config);
+          console.log('  Created src/voice-config.ts (importing from ' + serviceDataFile + ')');
+        } else {
+          // Data file exists but doesn't export expected names — use template
+          fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
+          console.log('  Created src/voice-config.ts (data file found but missing allServices/serviceCategories exports)');
+        }
+      } else {
+        fs.writeFileSync('src/voice-config.ts', sub(T + '/src/voice-config.ts.tmpl', clientSubs));
+        console.log('  Created src/voice-config.ts');
+      }
     }
 SCAFFOLD_EOF
 fi

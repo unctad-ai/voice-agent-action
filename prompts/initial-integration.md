@@ -114,17 +114,23 @@ Do NOT restructure existing routes or layout — only wrap them.
 
 ## 2. Enhance the scaffolded `src/voice-config.ts`
 
-> The scaffold has already created this file with a placeholder service and defaults from `.voice-agent.yml`. Replace the placeholder service array with real services extracted from the codebase. Keep the existing config fields (copilotName, colors, farewellMessage, etc.) — only update services, categories, categoryMap, synonyms, routeMap, and getServiceFormRoute.
+> The scaffold has already created this file with defaults from `.voice-agent.yml`. If `src/data/services.tsx` (or `.ts`) exists and exports `allServices` + `serviceCategories`, the scaffold **already generated the import** — the services array is populated with rich data. Your job is to enhance **only the remaining config**: synonyms, routeMap, getServiceFormRoute, and any missing SiteConfig fields.
+>
+> If the scaffold fell back to a placeholder service (no data file found), follow section 2.1 to find and wire up service data.
 
-### 2.1 Find services
+### 2.1 Find services (only if scaffold used placeholder)
 
-Try these sources in order:
-1. `src/data/services.ts` or `src/data/services.tsx` — dedicated services file with typed objects
+Check if `src/voice-config.ts` already imports from `./data/services`. If it does, skip to 2.2 — services and categories are already wired.
+
+If it has a placeholder inline list, try these sources in order:
+1. `src/data/services.ts` or `src/data/services.tsx` — dedicated services file with typed objects. **If found: import `allServices` and `serviceCategories` from it.** Do NOT copy data inline.
 2. `src/data/serviceCategories.ts` — categorized services
 3. If neither exists: grep for service arrays in page components (e.g. `Homepage.tsx`, `Dashboard.tsx`). Look for arrays with `title`/`name`/`description`/`link` fields.
 4. If no structured services found: create minimal service entries from the routes that look like service pages.
 
 For each service, extract or synthesize: `id` (kebab-case slug), `name`, `description`, `category`.
+
+**CRITICAL — always import, never inline.** The canonical data file contains rich fields (duration, cost, requirements, steps, eligibility) that the `getServiceDetails` tool returns to the LLM. Inlining a sparse subset causes the LLM to hallucinate that services lack information the user can see on the page.
 
 ### 2.2 Find routes
 
@@ -145,7 +151,8 @@ Read `.voice-agent.yml` for copilot name, color, domain, description, exclude_ro
 ### 2.4 Generate the file
 
 Generate `src/voice-config.ts` with:
-- `services` array matching actual service IDs
+- `services` — imported from canonical data source (see 2.1), NOT inlined
+- `categories` — imported from canonical data source, NOT inlined
 - `routeMap` mapping route paths to human-readable names
 - `getServiceFormRoute(serviceId)` returning the correct path for each service's form. For services with **external URLs** (linking outside the SPA), return `null` and note in the system prompt that these require browser navigation.
 - `copilotName`, `copilotColor`, `description` from config
@@ -168,8 +175,6 @@ Export as `siteConfig` with the `SiteConfig` type from `@unctad-ai/voice-agent-c
   getServiceFormRoute: (id: string) => string | null,
 }
 ```
-
-**Import services from the project's canonical data source** (e.g., `data/services.tsx` or `data/services.ts`) — do NOT hand-copy a sparse subset. The LLM answers from `getServiceDetails` tool results; sparse data causes hallucination.
 
 ## 3. Enhance the scaffolded `server/voice-config.ts`
 
