@@ -1,0 +1,32 @@
+name: Voice Agent Adapt
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [voice-agent]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to adapt'
+        required: true
+concurrency:
+  group: voice-agent-adapt-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  cancel-in-progress: true
+jobs:
+  adapt:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || '' }}
+      - uses: unctad-ai/voice-agent-action@main
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          mode: adapt
+          pr_number: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}

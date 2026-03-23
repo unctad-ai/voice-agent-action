@@ -1,0 +1,19 @@
+name: Voice Agent Init
+on:
+  workflow_dispatch:
+jobs:
+  init:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: unctad-ai/voice-agent-action@main
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          mode: init
