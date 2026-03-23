@@ -239,6 +239,35 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
 
+    - name: Claude Code adaptation (adapt mode)
+      if: ${{ inputs.mode == 'adapt' && steps.guard.outputs.skip != 'true' && steps.changes.outputs.types != 'cosmetic-only' }}
+      shell: bash
+      run: |
+        ACTION_PATH="${{ github.action_path }}"
+        CONTEXT_FILE="$ACTION_PATH/prompts/context.md"
+        PROMPT_FILE="$ACTION_PATH/prompts/pr-adaptation.md"
+        {
+          cat "$CONTEXT_FILE"
+          echo ""
+          cat "$PROMPT_FILE"
+          echo ""
+          echo "## Project config"
+          echo "- Copilot name: ${{ steps.config.outputs.copilot_name }}"
+          echo "- Copilot color: ${{ steps.config.outputs.copilot_color }}"
+          echo "- Change categories: ${{ steps.changes.outputs.types }}"
+          echo ""
+          echo "## Changed files"
+          cat /tmp/pr-changed-files.txt
+          echo ""
+          echo "## Diff"
+          cat /tmp/pr-diff.patch
+        } | npx -y @anthropic-ai/claude-code@latest \
+          --model claude-opus-4-6 \
+          --print \
+          --allowedTools "Edit,Read,Write,Bash,Glob,Grep"
+      env:
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+
     - name: Detect changes (incremental, init mode)
       if: ${{ inputs.mode == 'init' && steps.mode.outputs.mode == 'incremental' && steps.content_hash.outputs.skip != 'true' }}
       id: init_changes
@@ -285,6 +314,51 @@ runs:
     - name: Clean build artifacts before commit
       shell: bash
       run: rm -rf node_modules build dist server/node_modules
+
+    - name: Commit and push (adapt mode)
+      if: ${{ inputs.mode == 'adapt' && steps.guard.outputs.skip != 'true' && steps.changes.outputs.types != 'cosmetic-only' }}
+      id: adapt_push
+      shell: bash
+      run: |
+        PR="${{ inputs.pr_number }}"
+        git add src/ server/ .voice-agent* 2>/dev/null || true
+        if git diff --cached --quiet; then
+          echo "No changes — skipping push"
+          echo "skipped=true" >> "$GITHUB_OUTPUT"
+          if [[ -n "$PR" ]]; then
+            gh pr comment "$PR" --body "No voice adaptation needed — PR is already compatible."
+          fi
+          exit 0
+        fi
+        git commit -m "chore: adapt voice-agent hooks for PR #${PR}"
+        git push
+        echo "skipped=false" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
+    - name: PR comment (success)
+      if: ${{ inputs.mode == 'adapt' && steps.adapt_push.outputs.skipped == 'false' }}
+      shell: bash
+      run: |
+        PR="${{ inputs.pr_number }}"
+        [[ -n "$PR" ]] && gh pr comment "$PR" --body "Voice hooks adapted. Please review the latest commit."
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
+    - name: PR comment (build failure)
+      if: ${{ inputs.mode == 'adapt' && failure() }}
+      shell: bash
+      run: |
+        PR="${{ inputs.pr_number }}"
+        if [[ -n "$PR" ]]; then
+          if [[ "${{ steps.preflight.outputs.status }}" == "fail" ]]; then
+            gh pr comment "$PR" --body "Build was already failing before voice adaptation. Claude Code did not make it worse."
+          else
+            gh pr comment "$PR" --body "Voice adaptation broke the build. Manual fix needed. Check the workflow run for details."
+          fi
+        fi
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Update voice-agent branch
       if: ${{ inputs.mode == 'init' }}
