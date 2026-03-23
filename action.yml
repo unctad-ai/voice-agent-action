@@ -48,13 +48,21 @@ runs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Checkout PR branch (adapt mode, workflow_dispatch)
+    - name: Checkout PR branch (workflow_dispatch only)
       if: ${{ inputs.mode == 'adapt' && inputs.pr_number != '' && steps.guard.outputs.skip != 'true' }}
       shell: bash
       run: |
-        gh pr checkout ${{ inputs.pr_number }}
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
+        # For pull_request events, actions/checkout already checked out the branch.
+        # Only fetch+checkout for workflow_dispatch where ref wasn't set.
+        PR_HEAD=$(git ls-remote origin "pull/${{ inputs.pr_number }}/head" | cut -f1)
+        CURRENT=$(git rev-parse HEAD)
+        if [[ -n "$PR_HEAD" && "$PR_HEAD" != "$CURRENT" ]]; then
+          echo "Checking out PR #${{ inputs.pr_number }}"
+          git fetch origin "pull/${{ inputs.pr_number }}/head:pr-${{ inputs.pr_number }}"
+          git checkout "pr-${{ inputs.pr_number }}"
+        else
+          echo "Already on PR branch"
+        fi
 
     - name: Read config
       id: config
