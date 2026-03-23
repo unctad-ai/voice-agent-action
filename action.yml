@@ -109,7 +109,7 @@ runs:
         # Start from existing voice-agent branch, preserving all dev commits
         git checkout "origin/${BRANCH}" -B "${BRANCH}"
 
-        if git merge main --no-edit -m "chore: merge main (Figma changes) into voice-agent"; then
+        if git merge origin/main --no-edit -m "chore: merge main (Figma changes) into voice-agent"; then
           echo "Merge successful"
           echo "strategy=merge" >> "$GITHUB_OUTPUT"
         else
@@ -195,7 +195,7 @@ runs:
       run: |
         BRANCH="${{ inputs.voice_agent_branch }}"
         MODE="${{ steps.mode.outputs.mode }}"
-        MAIN_SHORT=$(git rev-parse --short main)
+        MAIN_SHORT=$(git rev-parse --short origin/main)
 
         if [[ "$MODE" == "initial" ]]; then
           # Initial: create branch from scratch (first-time setup)
