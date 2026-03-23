@@ -1,5 +1,5 @@
-name: 'Voice Agent Sync'
-description: 'Rebuild voice-agent branch from Figma Make main branch with voice agent integration'
+name: 'Voice Agent Action'
+description: 'Voice agent integration — init (bootstrap) or adapt (PR-based hook integration)'
 inputs:
   claude_code_oauth_token:
     description: 'Claude Code OAuth token for subscription-based usage'
@@ -9,9 +9,17 @@ inputs:
     required: false
     default: 'voice-agent'
   github_token:
-    description: 'GitHub token with contents:write permissions'
+    description: 'GitHub token with contents:write, pull-requests:write permissions'
     required: false
     default: ${{ github.token }}
+  mode:
+    description: 'init (bootstrap new project) or adapt (PR voice hook integration)'
+    required: false
+    default: 'adapt'
+  pr_number:
+    description: 'PR number (required for workflow_dispatch adapt mode)'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -27,33 +35,69 @@ runs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
+    - name: Bot guard (prevent infinite loops)
+      if: ${{ inputs.mode == 'adapt' }}
+      id: guard
+      shell: bash
+      run: |
+        LAST_AUTHOR=$(git log -1 --format='%an')
+        if [[ "$LAST_AUTHOR" == "github-actions[bot]" ]]; then
+          echo "Skipping — last commit was from the action"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Checkout PR branch (adapt mode, workflow_dispatch)
+      if: ${{ inputs.mode == 'adapt' && inputs.pr_number != '' && steps.guard.outputs.skip != 'true' }}
+      shell: bash
+      run: |
+        gh pr checkout ${{ inputs.pr_number }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
     - name: Read config
       id: config
       shell: bash
       run: |
-        if [ ! -f .voice-agent.yml ]; then
-          echo "::error::Missing .voice-agent.yml in repository root"
-          exit 1
+        MODE="${{ inputs.mode }}"
+        BRANCH="${{ inputs.voice_agent_branch }}"
+
+        if [[ "$MODE" == "adapt" ]]; then
+          # In adapt mode, read config from the base branch (voice-agent)
+          CONFIG=$(git show "origin/${BRANCH}:.voice-agent.yml" 2>/dev/null || echo "")
+          if [[ -z "$CONFIG" ]]; then
+            echo "::error::Missing .voice-agent.yml on ${BRANCH} branch"
+            exit 1
+          fi
+          echo "$CONFIG" > /tmp/.voice-agent.yml
+          CONFIG_FILE="/tmp/.voice-agent.yml"
+        else
+          if [ ! -f .voice-agent.yml ]; then
+            echo "::error::Missing .voice-agent.yml in repository root"
+            exit 1
+          fi
+          CONFIG_FILE=".voice-agent.yml"
         fi
+
         # Parse YAML config using node (yq not available on self-hosted runners)
         node -e "
           const fs = require('fs');
-          const yaml = fs.readFileSync('.voice-agent.yml', 'utf8');
+          const yaml = fs.readFileSync('$CONFIG_FILE', 'utf8');
           const config = {};
           yaml.split('\n').forEach(line => {
             const m = line.match(/^(\w+):\s*(.+)/);
             if (m) config[m[1]] = m[2].replace(/^[\"']|[\"']$/g, '').trim();
           });
-          const keys = ['copilot_name','copilot_color','domain','description','voice_agent_version','auto_merge_incremental','site_title','farewell_message','system_prompt_intro','greeting_message','avatar_url','language'];
+          const keys = ['copilot_name','copilot_color','domain','description','voice_agent_version','site_title','farewell_message','system_prompt_intro','greeting_message','avatar_url','language'];
           const out = [];
           keys.forEach(k => out.push(k + '=' + (config[k] || '')));
-          // Defaults
           if (!config.voice_agent_version) out.push('voice_agent_version=latest');
-          if (!config.auto_merge_incremental) out.push('auto_merge_incremental=true');
           fs.appendFileSync(process.env.GITHUB_OUTPUT, out.join('\n') + '\n');
         "
 
     - name: Detect mode (initial vs incremental)
+      if: ${{ inputs.mode == 'init' }}
       id: mode
       shell: bash
       run: |
@@ -70,11 +114,12 @@ runs:
         fi
 
     - name: Save ignored files
-      if: steps.mode.outputs.mode == 'incremental'
+      if: ${{ inputs.mode == 'init' && steps.mode.outputs.mode == 'incremental' }}
       shell: bash
       run: ${{ github.action_path }}/scripts/save-ignored.sh "${{ inputs.voice_agent_branch }}"
 
     - name: Content hash check (skip Claude Code if unchanged)
+      if: ${{ inputs.mode == 'init' }}
       id: content_hash
       shell: bash
       run: |
@@ -101,7 +146,7 @@ runs:
         fi
 
     - name: Merge main into voice-agent branch
-      if: steps.mode.outputs.mode == 'incremental'
+      if: ${{ inputs.mode == 'init' && steps.mode.outputs.mode == 'incremental' }}
       id: merge
       shell: bash
       run: |
@@ -122,12 +167,14 @@ runs:
         fi
 
     - name: Write content hash
+      if: ${{ inputs.mode == 'init' }}
       shell: bash
       run: |
         mkdir -p .voice-agent
         echo "${{ steps.content_hash.outputs.hash }}" > .voice-agent/content-hash
 
     - name: Scaffold from templates
+      if: ${{ inputs.mode == 'init' }}
       shell: bash
       run: ${{ github.action_path }}/scripts/scaffold.sh
       env:
@@ -142,9 +189,59 @@ runs:
         AVATAR_URL: ${{ steps.config.outputs.avatar_url }}
         LANGUAGE: ${{ steps.config.outputs.language }}
 
-    - name: Detect changes (incremental)
-      if: steps.mode.outputs.mode == 'incremental' && steps.content_hash.outputs.skip != 'true'
+    - name: Pre-flight build check
+      if: ${{ inputs.mode == 'adapt' && steps.guard.outputs.skip != 'true' }}
+      id: preflight
+      shell: bash
+      run: |
+        npm install
+        if npm run build 2>/dev/null; then
+          echo "status=pass" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::PR build already failing before adaptation"
+          echo "status=fail" >> "$GITHUB_OUTPUT"
+        fi
+        rm -rf build dist
+
+    - name: Detect PR changes
+      if: ${{ inputs.mode == 'adapt' && steps.guard.outputs.skip != 'true' }}
       id: changes
+      shell: bash
+      run: |
+        BRANCH="${{ inputs.voice_agent_branch }}"
+        CHANGE_TYPES=$(${{ github.action_path }}/scripts/detect-changes.sh "$BRANCH")
+        echo "types=${CHANGE_TYPES}" >> "$GITHUB_OUTPUT"
+        echo "Detected changes: ${CHANGE_TYPES}"
+
+        # Save changed files and diff to files (avoid GITHUB_OUTPUT size/quoting issues)
+        git diff --name-only "origin/${BRANCH}...HEAD" 2>/dev/null > /tmp/pr-changed-files.txt || echo "" > /tmp/pr-changed-files.txt
+        git diff "origin/${BRANCH}...HEAD" -- src/ server/ 2>/dev/null > /tmp/pr-diff.patch || echo "" > /tmp/pr-diff.patch
+
+        # Truncate diff if too large for Claude Code context (500KB limit)
+        DIFF_SIZE=$(wc -c < /tmp/pr-diff.patch)
+        if [[ "$DIFF_SIZE" -gt 500000 ]]; then
+          echo "::warning::PR diff is ${DIFF_SIZE} bytes — truncating to 500KB for Claude Code"
+          head -c 500000 /tmp/pr-diff.patch > /tmp/pr-diff-truncated.patch
+          mv /tmp/pr-diff-truncated.patch /tmp/pr-diff.patch
+          echo "" >> /tmp/pr-diff.patch
+          echo "... (diff truncated — full diff too large)" >> /tmp/pr-diff.patch
+        fi
+
+    - name: Skip cosmetic-only changes
+      if: ${{ inputs.mode == 'adapt' && steps.guard.outputs.skip != 'true' && steps.changes.outputs.types == 'cosmetic-only' }}
+      shell: bash
+      run: |
+        PR="${{ inputs.pr_number }}"
+        if [[ -n "$PR" ]]; then
+          gh pr comment "$PR" --body "No voice adaptation needed — only cosmetic changes detected."
+        fi
+        echo "Cosmetic only — skipping Claude Code"
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+
+    - name: Detect changes (incremental, init mode)
+      if: ${{ inputs.mode == 'init' && steps.mode.outputs.mode == 'incremental' && steps.content_hash.outputs.skip != 'true' }}
+      id: init_changes
       shell: bash
       run: |
         CHANGE_TYPES=$(${{ github.action_path }}/scripts/detect-changes.sh)
@@ -152,7 +249,7 @@ runs:
         echo "Detected changes: ${CHANGE_TYPES}"
 
     - name: Claude Code integration
-      if: steps.content_hash.outputs.skip != 'true'
+      if: ${{ inputs.mode == 'init' && steps.content_hash.outputs.skip != 'true' }}
       shell: bash
       run: |
         PROMPT_FILE="${{ github.action_path }}/prompts/${{ steps.mode.outputs.mode == 'initial' && 'initial-integration' || 'incremental-update' }}.md"
@@ -168,7 +265,7 @@ runs:
           echo "- Copilot color: ${{ steps.config.outputs.copilot_color }}"
           echo "- Domain: ${{ steps.config.outputs.domain }}"
           echo "- Description: ${{ steps.config.outputs.description }}"
-          ${{ steps.changes.outputs.types && format('echo "- Change categories: {0}"', steps.changes.outputs.types) || 'true' }}
+          ${{ steps.init_changes.outputs.types && format('echo "- Change categories: {0}"', steps.init_changes.outputs.types) || 'true' }}
         } | npx -y @anthropic-ai/claude-code@latest \
           --model claude-opus-4-6 \
           --print \
@@ -177,7 +274,7 @@ runs:
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
 
     - name: Restore ignored files
-      if: steps.mode.outputs.mode == 'incremental'
+      if: ${{ inputs.mode == 'init' && steps.mode.outputs.mode == 'incremental' }}
       shell: bash
       run: ${{ github.action_path }}/scripts/restore-ignored.sh
 
@@ -190,6 +287,7 @@ runs:
       run: rm -rf node_modules build dist server/node_modules
 
     - name: Update voice-agent branch
+      if: ${{ inputs.mode == 'init' }}
       id: push
       shell: bash
       run: |
@@ -224,7 +322,7 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
 
     - name: Summary
-      if: steps.push.outputs.skipped != 'true'
+      if: ${{ inputs.mode == 'init' && steps.push.outputs.skipped != 'true' }}
       shell: bash
       run: |
         echo "voice-agent branch updated. Coolify will auto-deploy from this branch."

@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Classify what changed on main to determine if Claude Code is needed
+# Classify what changed in the PR compared to the voice-agent base branch
 # Output: space-separated list of change types
+# Usage: detect-changes.sh [branch]
+#   branch: base branch to diff against (default: voice-agent)
 
+BRANCH="${1:-voice-agent}"
 CHANGES=""
 
-# Get files changed on main since the last merge into voice-agent
-MERGE_BASE=$(git merge-base HEAD main 2>/dev/null || echo "")
-if [[ -n "$MERGE_BASE" ]]; then
-  CHANGED_FILES=$(git diff --name-only "$MERGE_BASE"..main 2>/dev/null || git ls-files)
-else
-  CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || git ls-files)
-fi
+CHANGED_FILES=$(git diff --name-only "origin/${BRANCH}...HEAD" 2>/dev/null || git diff --name-only HEAD~1..HEAD)
 
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
