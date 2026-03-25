@@ -165,9 +165,7 @@ add_dev_dep() {
   "
 }
 
-add_dep "@unctad-ai/voice-agent-core" "$VERSION"
-add_dep "@unctad-ai/voice-agent-ui" "$VERSION"
-add_dep "@unctad-ai/voice-agent-registries" "$VERSION"
+add_dep "@unctad-ai/voice-agent" "$VERSION"
 add_dev_dep "vite-plugin-static-copy" "^2.3.0"
 
 # Auto-resolve peer dependencies from published packages (zero maintenance).
@@ -177,6 +175,7 @@ echo "  Resolving peer dependencies from npm registry..."
 node -e "
   const { execSync } = require('child_process');
   const kit = [
+    '@unctad-ai/voice-agent',
     '@unctad-ai/voice-agent-core',
     '@unctad-ai/voice-agent-ui',
     '@unctad-ai/voice-agent-registries'
