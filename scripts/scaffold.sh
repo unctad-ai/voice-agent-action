@@ -241,12 +241,12 @@ if ! grep -q "vite-plugin-static-copy" vite.config.ts 2>/dev/null; then
     if (config.includes('plugins')) {
       config = config.replace(
         /react\(\)/,
-        'react(),\n      viteStaticCopy({\n        targets: [\n          {\n            src: \"node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm\",\n            dest: \"./\",\n          },\n        ],\n      })'
+        'react(),\n      viteStaticCopy({\n        targets: [\n          {\n            src: \"node_modules/@unctad-ai/voice-agent-core/dist/vad/ten_vad.wasm\",\n            dest: \"./\",\n          },\n        ],\n      })'
       );
     } else {
       config = config.replace(
         /export default defineConfig\(\{/,
-        \"export default defineConfig({\n  plugins: [\n    react(),\n    viteStaticCopy({\n      targets: [{ src: 'node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm', dest: './' }],\n    }),\n  ],\"
+        \"export default defineConfig({\n  plugins: [\n    react(),\n    viteStaticCopy({\n      targets: [{ src: 'node_modules/@unctad-ai/voice-agent-core/dist/vad/ten_vad.wasm', dest: './' }],\n    }),\n  ],\"
       );
     }
     require('fs').writeFileSync('vite.config.ts', config);
