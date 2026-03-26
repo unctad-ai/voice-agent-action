@@ -226,6 +226,30 @@ else
   echo "  outDir already set"
 fi
 
+# Add ten-vad-glue alias if not present
+if ! grep -q "ten-vad-glue" vite.config.ts 2>/dev/null; then
+  node -e "
+    let config = require('fs').readFileSync('vite.config.ts', 'utf8');
+    if (config.includes('alias')) {
+      // Add to existing alias object
+      config = config.replace(
+        /alias:\s*\{/,
+        'alias: {\n      \"ten-vad-glue\": \"./node_modules/@gooney-001/ten-vad-lib/ten_vad.js\",'
+      );
+    } else {
+      // Add resolve.alias section
+      config = config.replace(
+        /export default defineConfig\(\{/,
+        'export default defineConfig({\n  resolve: { alias: { \"ten-vad-glue\": \"./node_modules/@gooney-001/ten-vad-lib/ten_vad.js\" } },'
+      );
+    }
+    require('fs').writeFileSync('vite.config.ts', config);
+    console.log('  Added ten-vad-glue alias');
+  "
+else
+  echo "  ten-vad-glue alias already present"
+fi
+
 # Add vite-plugin-static-copy for ten_vad.wasm (unhashed copy to build output)
 if ! grep -q "vite-plugin-static-copy" vite.config.ts 2>/dev/null; then
   node -e "
@@ -241,12 +265,12 @@ if ! grep -q "vite-plugin-static-copy" vite.config.ts 2>/dev/null; then
     if (config.includes('plugins')) {
       config = config.replace(
         /react\(\)/,
-        'react(),\n      viteStaticCopy({\n        targets: [\n          {\n            src: \"node_modules/@unctad-ai/voice-agent-core/dist/vad/ten_vad.wasm\",\n            dest: \"./\",\n          },\n        ],\n      })'
+        'react(),\n      viteStaticCopy({\n        targets: [\n          {\n            src: \"node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm\",\n            dest: \"./\",\n          },\n        ],\n      })'
       );
     } else {
       config = config.replace(
         /export default defineConfig\(\{/,
-        \"export default defineConfig({\n  plugins: [\n    react(),\n    viteStaticCopy({\n      targets: [{ src: 'node_modules/@unctad-ai/voice-agent-core/dist/vad/ten_vad.wasm', dest: './' }],\n    }),\n  ],\"
+        \"export default defineConfig({\n  plugins: [\n    react(),\n    viteStaticCopy({\n      targets: [{ src: 'node_modules/@gooney-001/ten-vad-lib/ten_vad.wasm', dest: './' }],\n    }),\n  ],\"
       );
     }
     require('fs').writeFileSync('vite.config.ts', config);
